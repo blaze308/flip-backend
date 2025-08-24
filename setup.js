@@ -93,7 +93,7 @@ MONGODB_URI=${mongoUri}
 ${
   mongoUriProd
     ? `MONGODB_URI_PROD=${mongoUriProd}`
-    : "# MONGODB_URI_PROD=mongodb+srv://username:password@cluster.mongodb.net/ancientflip"
+    : ""
 }
 
 # Firebase Configuration
