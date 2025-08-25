@@ -105,7 +105,11 @@ router.get(
           isLiked: post.likedBy
             .map((id) => id.toString())
             .includes(user._id.toString()),
+          isFollowingUser: user.following
+            .map((id) => id.toString())
+            .includes(post.userId._id.toString()),
           username:
+            post.userId?.profile?.username ||
             post.userId?.displayName ||
             `${post.userId?.profile?.firstName || ""} ${
               post.userId?.profile?.lastName || ""
@@ -234,6 +238,9 @@ router.get(
         isLiked: post.likedBy
           .map((id) => id.toString())
           .includes(user._id.toString()),
+        isFollowingUser: user.following
+          .map((id) => id.toString())
+          .includes(post.userId._id.toString()),
         username:
           post.userId?.profile?.username ||
           post.userId?.displayName ||
@@ -537,6 +544,9 @@ router.get(
         isLiked: post.likedBy
           .map((id) => id.toString())
           .includes(user._id.toString()),
+        isFollowingUser: user.following
+          .map((id) => id.toString())
+          .includes(post.userId._id.toString()),
         username:
           post.userId?.profile?.username ||
           post.userId?.displayName ||
