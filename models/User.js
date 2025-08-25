@@ -248,6 +248,42 @@ const userSchema = new mongoose.Schema(
       },
     },
 
+    // Social Features
+    bookmarkedPosts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Post",
+      },
+    ],
+
+    following: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    followers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    hiddenPosts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Post",
+      },
+    ],
+
+    blockedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
     // Analytics and Metrics
     stats: {
       totalSessions: {
@@ -340,6 +376,77 @@ userSchema.methods.softDelete = function () {
 userSchema.methods.restore = function () {
   this.deletedAt = null;
   this.isActive = true;
+  return this.save();
+};
+
+// Social feature methods
+userSchema.methods.bookmarkPost = function (postId) {
+  if (!this.bookmarkedPosts.includes(postId)) {
+    this.bookmarkedPosts.push(postId);
+  }
+  return this.save();
+};
+
+userSchema.methods.unbookmarkPost = function (postId) {
+  this.bookmarkedPosts = this.bookmarkedPosts.filter(
+    (id) => id.toString() !== postId.toString()
+  );
+  return this.save();
+};
+
+userSchema.methods.followUser = function (userId) {
+  if (!this.following.includes(userId)) {
+    this.following.push(userId);
+  }
+  return this.save();
+};
+
+userSchema.methods.unfollowUser = function (userId) {
+  this.following = this.following.filter(
+    (id) => id.toString() !== userId.toString()
+  );
+  return this.save();
+};
+
+userSchema.methods.addFollower = function (userId) {
+  if (!this.followers.includes(userId)) {
+    this.followers.push(userId);
+  }
+  return this.save();
+};
+
+userSchema.methods.removeFollower = function (userId) {
+  this.followers = this.followers.filter(
+    (id) => id.toString() !== userId.toString()
+  );
+  return this.save();
+};
+
+userSchema.methods.hidePost = function (postId) {
+  if (!this.hiddenPosts.includes(postId)) {
+    this.hiddenPosts.push(postId);
+  }
+  return this.save();
+};
+
+userSchema.methods.unhidePost = function (postId) {
+  this.hiddenPosts = this.hiddenPosts.filter(
+    (id) => id.toString() !== postId.toString()
+  );
+  return this.save();
+};
+
+userSchema.methods.blockUser = function (userId) {
+  if (!this.blockedUsers.includes(userId)) {
+    this.blockedUsers.push(userId);
+  }
+  return this.save();
+};
+
+userSchema.methods.unblockUser = function (userId) {
+  this.blockedUsers = this.blockedUsers.filter(
+    (id) => id.toString() !== userId.toString()
+  );
   return this.save();
 };
 

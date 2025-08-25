@@ -603,4 +603,169 @@ router.get(
   }
 );
 
+/**
+ * POST /users/:userId/follow
+ *
+ * Follow or unfollow a user
+ */
+router.post(
+  "/:userId/follow",
+  authenticateToken,
+  requireSyncedUser,
+  async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { user: currentUser } = req;
+
+      // Can't follow yourself
+      if (userId === currentUser._id.toString()) {
+        return res.status(400).json({
+          success: false,
+          message: "You cannot follow yourself",
+        });
+      }
+
+      const targetUser = await User.findOne({
+        _id: userId,
+        isActive: true,
+        deletedAt: null,
+      });
+
+      if (!targetUser) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      const isFollowing = currentUser.following.includes(userId);
+
+      if (isFollowing) {
+        // Unfollow
+        await currentUser.unfollowUser(userId);
+        await targetUser.removeFollower(currentUser._id);
+      } else {
+        // Follow
+        await currentUser.followUser(userId);
+        await targetUser.addFollower(currentUser._id);
+      }
+
+      // Log follow action
+      await AuditLog.logAction({
+        userId: currentUser._id,
+        firebaseUid: currentUser.firebaseUid,
+        action: isFollowing ? "user_unfollow" : "user_follow",
+        resource: "user",
+        resourceId: userId,
+        success: true,
+        details: {
+          targetUserEmail: targetUser.email,
+          targetUserDisplayName: targetUser.displayName,
+        },
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
+      res.json({
+        success: true,
+        message: isFollowing ? "User unfollowed" : "User followed",
+        data: {
+          isFollowing: !isFollowing,
+          followersCount: targetUser.followers.length,
+          followingCount: currentUser.following.length,
+        },
+      });
+    } catch (error) {
+      console.error("Follow user error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to follow/unfollow user",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
+      });
+    }
+  }
+);
+
+/**
+ * PUT /users/notifications
+ *
+ * Update user notification preferences
+ */
+router.put(
+  "/notifications",
+  authenticateToken,
+  requireSyncedUser,
+  [
+    body("email").optional().isBoolean().withMessage("Email must be boolean"),
+    body("push").optional().isBoolean().withMessage("Push must be boolean"),
+    body("sms").optional().isBoolean().withMessage("SMS must be boolean"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const { user } = req;
+      const { email, push, sms } = req.body;
+
+      // Update notification preferences
+      if (email !== undefined) {
+        user.profile.preferences.notifications.email = email;
+      }
+      if (push !== undefined) {
+        user.profile.preferences.notifications.push = push;
+      }
+      if (sms !== undefined) {
+        user.profile.preferences.notifications.sms = sms;
+      }
+
+      await user.save();
+
+      // Log notification update
+      await AuditLog.logAction({
+        userId: user._id,
+        firebaseUid: user.firebaseUid,
+        action: "notifications_update",
+        resource: "user",
+        resourceId: user._id.toString(),
+        success: true,
+        details: {
+          email: user.profile.preferences.notifications.email,
+          push: user.profile.preferences.notifications.push,
+          sms: user.profile.preferences.notifications.sms,
+        },
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
+      res.json({
+        success: true,
+        message: "Notification preferences updated",
+        data: {
+          notifications: user.profile.preferences.notifications,
+        },
+      });
+    } catch (error) {
+      console.error("Update notifications error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update notification preferences",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
+      });
+    }
+  }
+);
+
 module.exports = router;

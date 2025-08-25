@@ -273,8 +273,12 @@ router.post(
   ],
   async (req, res) => {
     try {
+      console.log("POST /posts - Request received");
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log("Validation errors:", errors.array());
         return res.status(400).json({
           success: false,
           message: "Validation failed",
@@ -285,7 +289,19 @@ router.post(
       const { user, firebaseUser } = req;
       const postData = req.body;
 
+      console.log("User:", user?.email || "Unknown");
+      console.log("Firebase User:", firebaseUser?.email || "Unknown");
+
       // Create new post
+      console.log("Creating post with data:", {
+        userId: user._id,
+        firebaseUid: firebaseUser.uid,
+        type: postData.type,
+        content: postData.content,
+        textStyle: postData.textStyle,
+        isPublic: postData.isPublic !== false,
+      });
+
       const post = new Post({
         userId: user._id,
         firebaseUid: firebaseUser.uid,
@@ -301,7 +317,9 @@ router.post(
         isPublic: postData.isPublic !== false, // Default to true
       });
 
+      console.log("Saving post to database...");
       await post.save();
+      console.log("Post saved successfully with ID:", post._id);
 
       // Populate user data
       await post.populate(
@@ -351,18 +369,36 @@ router.post(
       });
     } catch (error) {
       console.error("Create post error:", error);
+      console.error("Error stack:", error.stack);
+
+      // Check if it's a validation error
+      if (error.name === "ValidationError") {
+        console.error("Validation error details:", error.errors);
+        return res.status(400).json({
+          success: false,
+          message: "Post validation failed",
+          errors: Object.keys(error.errors).map((key) => ({
+            field: key,
+            message: error.errors[key].message,
+          })),
+        });
+      }
 
       // Log failed post creation
-      await AuditLog.logAction({
-        userId: req.user?._id,
-        firebaseUid: req.firebaseUser?.uid,
-        action: "post_create",
-        resource: "post",
-        success: false,
-        errorMessage: error.message,
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent"),
-      });
+      try {
+        await AuditLog.logAction({
+          userId: req.user?._id,
+          firebaseUid: req.firebaseUser?.uid,
+          action: "post_create",
+          resource: "post",
+          success: false,
+          errorMessage: error.message,
+          ipAddress: req.ip,
+          userAgent: req.get("User-Agent"),
+        });
+      } catch (logError) {
+        console.error("Failed to log audit action:", logError);
+      }
 
       res.status(500).json({
         success: false,
@@ -789,6 +825,150 @@ router.post(
       res.status(500).json({
         success: false,
         message: "Failed to share post",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
+      });
+    }
+  }
+);
+
+/**
+ * POST /posts/:postId/bookmark
+ *
+ * Bookmark or unbookmark a post
+ */
+router.post(
+  "/:postId/bookmark",
+  authenticateToken,
+  requireSyncedUser,
+  async (req, res) => {
+    try {
+      const { postId } = req.params;
+      const { user } = req;
+
+      const post = await Post.findOne({
+        _id: postId,
+        isActive: true,
+        deletedAt: null,
+      });
+
+      if (!post) {
+        return res.status(404).json({
+          success: false,
+          message: "Post not found",
+        });
+      }
+
+      const isBookmarked = user.bookmarkedPosts.includes(postId);
+
+      if (isBookmarked) {
+        await user.unbookmarkPost(postId);
+      } else {
+        await user.bookmarkPost(postId);
+      }
+
+      // Log bookmark action
+      await AuditLog.logAction({
+        userId: user._id,
+        firebaseUid: user.firebaseUid,
+        action: isBookmarked ? "post_unbookmark" : "post_bookmark",
+        resource: "post",
+        resourceId: postId,
+        success: true,
+        details: {
+          postType: post.type,
+          postUserId: post.userId.toString(),
+        },
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
+      res.json({
+        success: true,
+        message: isBookmarked ? "Post unbookmarked" : "Post bookmarked",
+        data: {
+          isBookmarked: !isBookmarked,
+        },
+      });
+    } catch (error) {
+      console.error("Bookmark post error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to bookmark post",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
+      });
+    }
+  }
+);
+
+/**
+ * POST /posts/:postId/hide
+ *
+ * Hide or unhide a post for the current user
+ */
+router.post(
+  "/:postId/hide",
+  authenticateToken,
+  requireSyncedUser,
+  async (req, res) => {
+    try {
+      const { postId } = req.params;
+      const { user } = req;
+
+      const post = await Post.findOne({
+        _id: postId,
+        isActive: true,
+        deletedAt: null,
+      });
+
+      if (!post) {
+        return res.status(404).json({
+          success: false,
+          message: "Post not found",
+        });
+      }
+
+      const isHidden = user.hiddenPosts.includes(postId);
+
+      if (isHidden) {
+        await user.unhidePost(postId);
+      } else {
+        await user.hidePost(postId);
+      }
+
+      // Log hide action
+      await AuditLog.logAction({
+        userId: user._id,
+        firebaseUid: user.firebaseUid,
+        action: isHidden ? "post_unhide" : "post_hide",
+        resource: "post",
+        resourceId: postId,
+        success: true,
+        details: {
+          postType: post.type,
+          postUserId: post.userId.toString(),
+        },
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
+      res.json({
+        success: true,
+        message: isHidden ? "Post unhidden" : "Post hidden",
+        data: {
+          isHidden: !isHidden,
+        },
+      });
+    } catch (error) {
+      console.error("Hide post error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to hide post",
         error:
           process.env.NODE_ENV === "development"
             ? error.message
