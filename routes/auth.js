@@ -5,6 +5,7 @@ const AuditLog = require("../models/AuditLog");
 const Session = require("../models/Session");
 const { authenticateToken } = require("../middleware/auth");
 const { getFirebaseUser } = require("../config/firebase");
+const { generatePhoneAuthUsername } = require("../utils/usernameGenerator");
 
 const router = express.Router();
 
@@ -143,6 +144,32 @@ router.post(
           user.profile.firstName = nameParts[0];
           if (nameParts.length > 1) {
             user.profile.lastName = nameParts.slice(1).join(" ");
+          }
+        }
+
+        // Generate username for phone authentication users
+        if (
+          providers.includes("phone") &&
+          fbUser.phoneNumber &&
+          !fbUser.displayName
+        ) {
+          try {
+            const generatedUsername = await generatePhoneAuthUsername(
+              fbUser.phoneNumber,
+              User,
+              new Date()
+            );
+            user.profile.username = generatedUsername;
+            user.displayName = generatedUsername; // Also set as display name
+            console.log(
+              `Generated username for phone user: ${generatedUsername}`
+            );
+          } catch (error) {
+            console.error("Failed to generate username for phone user:", error);
+            // Fallback to a simple timestamp-based username
+            const timestamp = Date.now().toString().slice(-6);
+            user.profile.username = `user${timestamp}`;
+            user.displayName = `user${timestamp}`;
           }
         }
 

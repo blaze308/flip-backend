@@ -47,12 +47,32 @@ router.get(
       const type = req.query.type;
       const skip = (page - 1) * limit;
 
-      // Build query
-      let query = Post.findPublic();
+      // Build query for feed: public posts + private posts from followed users
+      let query = Post.find({
+        isActive: true,
+        deletedAt: null,
+        moderationStatus: "approved",
+        $or: [
+          // Public posts from everyone
+          { isPublic: true },
+          // Private posts from users that the current user follows
+          {
+            isPublic: false,
+            userId: { $in: user.following },
+          },
+          // User's own posts (both public and private)
+          {
+            userId: user._id,
+          },
+        ],
+      });
 
       if (type) {
         query = query.where("type", type);
       }
+
+      // Exclude posts that the user has hidden
+      query = query.where("_id").nin(user.hiddenPosts);
 
       const posts = await query
         .populate(
@@ -166,17 +186,37 @@ router.get(
         });
       }
 
-      // Get posts (show all posts if it's the user's own profile, otherwise only public)
-      let query =
-        userId === user._id.toString()
-          ? Post.findByUser(userId)
-          : Post.find({
-              userId,
-              isActive: true,
-              isPublic: true,
-              deletedAt: null,
-              moderationStatus: "approved",
-            });
+      // Get posts based on relationship with the profile owner
+      let query;
+
+      if (userId === user._id.toString()) {
+        // Own profile: show all posts (public and private)
+        query = Post.findByUser(userId);
+      } else {
+        // Check if current user follows the profile owner
+        const isFollowing = user.following
+          .map((id) => id.toString())
+          .includes(userId);
+
+        if (isFollowing) {
+          // Following: show all posts (public and private)
+          query = Post.find({
+            userId,
+            isActive: true,
+            deletedAt: null,
+            moderationStatus: "approved",
+          });
+        } else {
+          // Not following: show only public posts
+          query = Post.find({
+            userId,
+            isActive: true,
+            isPublic: true,
+            deletedAt: null,
+            moderationStatus: "approved",
+          });
+        }
+      }
 
       const posts = await query
         .populate(
@@ -195,6 +235,7 @@ router.get(
           .map((id) => id.toString())
           .includes(user._id.toString()),
         username:
+          post.userId?.profile?.username ||
           post.userId?.displayName ||
           `${post.userId?.profile?.firstName || ""} ${
             post.userId?.profile?.lastName || ""
@@ -381,6 +422,7 @@ router.post(
         ...post.toJSON(),
         isLiked: false,
         username:
+          post.userId?.profile?.username ||
           post.userId?.displayName ||
           `${post.userId?.profile?.firstName || ""} ${
             post.userId?.profile?.lastName || ""
@@ -472,10 +514,14 @@ router.get(
       }
 
       // Check if user can view this post
-      if (
-        !post.isPublic &&
-        post.userId._id.toString() !== user._id.toString()
-      ) {
+      const canViewPost =
+        post.isPublic || // Public posts are visible to everyone
+        post.userId._id.toString() === user._id.toString() || // Post owner can always see their posts
+        user.following
+          .map((id) => id.toString())
+          .includes(post.userId._id.toString()); // Followers can see private posts
+
+      if (!canViewPost) {
         return res.status(403).json({
           success: false,
           message: "Access denied",
@@ -492,6 +538,7 @@ router.get(
           .map((id) => id.toString())
           .includes(user._id.toString()),
         username:
+          post.userId?.profile?.username ||
           post.userId?.displayName ||
           `${post.userId?.profile?.firstName || ""} ${
             post.userId?.profile?.lastName || ""
@@ -636,6 +683,7 @@ router.put(
           .map((id) => id.toString())
           .includes(user._id.toString()),
         username:
+          post.userId?.profile?.username ||
           post.userId?.displayName ||
           `${post.userId?.profile?.firstName || ""} ${
             post.userId?.profile?.lastName || ""

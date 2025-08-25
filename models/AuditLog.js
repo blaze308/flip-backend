@@ -59,6 +59,13 @@ const auditLogSchema = new mongoose.Schema(
         "post_share",
         "post_hide",
         "post_unhide",
+        // Social
+        "user_follow",
+        "user_unfollow",
+        "user_block",
+        "user_unblock",
+        // Notifications
+        "notifications_update",
         // Admin
         "admin_action",
         "role_change",
