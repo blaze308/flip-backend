@@ -6,6 +6,7 @@ A production-ready Node.js/Express backend with Firebase Authentication integrat
 
 - **Firebase Authentication Integration**: Complete Firebase Admin SDK setup with token verification
 - **MongoDB Database**: Comprehensive user management with audit logging
+- **Cloudinary Integration**: Image and video upload with automatic optimization
 - **Security First**: Rate limiting, CORS, input validation, and security headers
 - **Account Linking**: Intelligent handling of multiple auth providers for same email
 - **Session Management**: Track user sessions across devices
@@ -18,7 +19,8 @@ A production-ready Node.js/Express backend with Firebase Authentication integrat
 backend/
 ├── config/
 │   ├── database.js          # MongoDB connection and health checks
-│   └── firebase.js          # Firebase Admin SDK configuration
+│   ├── firebase.js          # Firebase Admin SDK configuration
+│   └── cloudinary.js        # Cloudinary configuration and upload utilities
 ├── middleware/
 │   ├── auth.js              # Firebase token verification middleware
 │   ├── errorHandler.js      # Global error handling
@@ -29,7 +31,9 @@ backend/
 │   └── AuditLog.js          # Activity logging for compliance
 ├── routes/
 │   ├── auth.js              # Authentication endpoints
-│   └── users.js             # User management endpoints
+│   ├── users.js             # User management endpoints
+│   ├── posts.js             # Post management endpoints
+│   └── upload.js            # File upload endpoints (Cloudinary)
 ├── .env.example             # Environment variables template
 ├── package.json             # Dependencies and scripts
 └── server.js                # Main application entry point
@@ -68,6 +72,11 @@ FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYour-Private-Key-Here\n-----E
 FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
 # ... (see .env.example for all required Firebase fields)
 
+# Cloudinary Configuration (from Cloudinary Dashboard)
+CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name
+CLOUDINARY_API_KEY=your-cloudinary-api-key
+CLOUDINARY_API_SECRET=your-cloudinary-api-secret
+
 # Security
 JWT_SECRET=your-super-secret-jwt-key-here
 ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
@@ -81,7 +90,24 @@ ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com
 4. Click **Generate New Private Key**
 5. Copy the values to your `.env` file
 
-### 4. MongoDB Setup
+### 4. Cloudinary Setup
+
+1. Create account at [Cloudinary](https://cloudinary.com/)
+2. Go to your **Dashboard**
+3. Copy the following values to your `.env` file:
+   - **Cloud Name**: `CLOUDINARY_CLOUD_NAME`
+   - **API Key**: `CLOUDINARY_API_KEY`
+   - **API Secret**: `CLOUDINARY_API_SECRET`
+
+**Cloudinary Features:**
+
+- Automatic image optimization and format conversion
+- Video upload with thumbnail generation
+- Organized folder structure per user
+- CDN delivery for fast loading
+- Transformation capabilities (resize, crop, quality)
+
+### 5. MongoDB Setup
 
 **Local MongoDB:**
 
@@ -96,7 +122,7 @@ docker run -d -p 27017:27017 --name mongodb mongo:latest
 2. Create a cluster
 3. Get connection string and add to `MONGODB_URI_PROD`
 
-### 5. Start the Server
+### 6. Start the Server
 
 **Development:**
 
@@ -238,6 +264,119 @@ End a specific session.
 #### GET `/users/audit-logs`
 
 Get user's activity logs.
+
+### Upload Endpoints
+
+#### POST `/upload/image`
+
+Upload a single image to Cloudinary.
+
+**Headers:**
+
+```
+Authorization: Bearer <firebase-id-token>
+Content-Type: multipart/form-data
+```
+
+**Body (Form Data):**
+
+```
+image: <image-file>
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Image uploaded successfully",
+  "data": {
+    "imageUrl": "https://res.cloudinary.com/your-cloud/image/upload/v1234567890/ancientflip/users/user-id/images/image.jpg",
+    "publicId": "ancientflip/users/user-id/images/image",
+    "width": 1080,
+    "height": 1080,
+    "format": "jpg",
+    "size": 245760
+  }
+}
+```
+
+#### POST `/upload/video`
+
+Upload a single video to Cloudinary with automatic thumbnail generation.
+
+**Headers:**
+
+```
+Authorization: Bearer <firebase-id-token>
+Content-Type: multipart/form-data
+```
+
+**Body (Form Data):**
+
+```
+video: <video-file>
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Video uploaded successfully",
+  "data": {
+    "videoUrl": "https://res.cloudinary.com/your-cloud/video/upload/v1234567890/ancientflip/users/user-id/videos/video.mp4",
+    "thumbnailUrl": "https://res.cloudinary.com/your-cloud/video/upload/v1234567890/ancientflip/users/user-id/videos/video.jpg",
+    "publicId": "ancientflip/users/user-id/videos/video",
+    "width": 1920,
+    "height": 1080,
+    "format": "mp4",
+    "size": 5242880,
+    "duration": 30.5
+  }
+}
+```
+
+#### POST `/upload/multiple-images`
+
+Upload multiple images to Cloudinary (max 10 images).
+
+**Headers:**
+
+```
+Authorization: Bearer <firebase-id-token>
+Content-Type: multipart/form-data
+```
+
+**Body (Form Data):**
+
+```
+images: <image-file-1>
+images: <image-file-2>
+...
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "3 images uploaded successfully",
+  "data": {
+    "images": [
+      {
+        "imageUrl": "https://res.cloudinary.com/your-cloud/image/upload/v1234567890/ancientflip/users/user-id/images/image1.jpg",
+        "publicId": "ancientflip/users/user-id/images/image1",
+        "width": 1080,
+        "height": 1080,
+        "format": "jpg",
+        "size": 245760
+      }
+    ],
+    "count": 3
+  }
+}
+```
 
 ## 🔒 Security Features
 
@@ -422,4 +561,5 @@ For issues and questions:
 5. Review rate limiting settings
 
 The backend is designed to integrate seamlessly with your Firebase-authenticated Flutter app while providing enterprise-grade security and monitoring capabilities.
+
 # flip-backend

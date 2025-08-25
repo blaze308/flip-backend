@@ -32,6 +32,7 @@ const {
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
 const postRoutes = require("./routes/posts");
+const uploadRoutes = require("./routes/upload");
 
 // Initialize Express app
 const app = express();
@@ -142,6 +143,10 @@ app.use("/users/profile", updateLimiter); // Apply update limiter to profile upd
 app.use("/users/account", deleteLimiter); // Apply delete limiter to account deletion
 app.use("/users", userRoutes);
 app.use("/posts", postRoutes);
+app.use("/upload", uploadRoutes);
+
+// Serve uploaded files statically
+app.use("/uploads", express.static("uploads"));
 
 // Security error handler (before global error handler)
 app.use(securityErrorHandler);
