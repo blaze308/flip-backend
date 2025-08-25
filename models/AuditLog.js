@@ -47,6 +47,11 @@ const auditLogSchema = new mongoose.Schema(
         // Data
         "data_export",
         "data_delete",
+        // Posts
+        "post_create",
+        "post_update",
+        "post_delete",
+        "post_view",
         // Admin
         "admin_action",
         "role_change",
@@ -57,7 +62,7 @@ const auditLogSchema = new mongoose.Schema(
     // Resource affected (optional)
     resource: {
       type: String,
-      enum: ["user", "profile", "account", "session", "data"],
+      enum: ["user", "profile", "account", "session", "data", "post"],
     },
 
     resourceId: String,

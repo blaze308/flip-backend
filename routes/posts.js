@@ -327,25 +327,34 @@ router.post(
         "displayName photoURL profile.firstName profile.lastName"
       );
 
-      // Log post creation
-      await AuditLog.logAction({
-        userId: user._id,
-        firebaseUid: firebaseUser.uid,
-        action: "post_create",
-        resource: "post",
-        resourceId: post._id.toString(),
-        success: true,
-        details: {
-          type: post.type,
-          isPublic: post.isPublic,
-          hasContent: !!post.content,
-          hasImages: !!(post.imageUrls && post.imageUrls.length > 0),
-          hasVideo: !!post.videoUrl,
-          tagCount: post.tags ? post.tags.length : 0,
-        },
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent"),
-      });
+      // Log post creation (non-blocking)
+      try {
+        await AuditLog.logAction({
+          userId: user._id,
+          firebaseUid: firebaseUser.uid,
+          action: "post_create",
+          resource: "post",
+          resourceId: post._id.toString(),
+          success: true,
+          details: {
+            type: post.type,
+            isPublic: post.isPublic,
+            hasContent: !!post.content,
+            hasImages: !!(post.imageUrls && post.imageUrls.length > 0),
+            hasVideo: !!post.videoUrl,
+            tagCount: post.tags ? post.tags.length : 0,
+          },
+          ipAddress: req.ip,
+          userAgent: req.get("User-Agent"),
+        });
+        console.log("Audit log created successfully for post:", post._id);
+      } catch (auditError) {
+        console.error(
+          "Audit log creation failed (non-blocking):",
+          auditError.message
+        );
+        // Don't throw - allow post creation to succeed even if audit log fails
+      }
 
       // Format response
       const responsePost = {
