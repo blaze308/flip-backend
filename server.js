@@ -32,6 +32,7 @@ const {
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
 const postRoutes = require("./routes/posts");
+const commentRoutes = require("./routes/comments");
 const uploadRoutes = require("./routes/upload");
 
 // Initialize Express app
@@ -133,6 +134,7 @@ app.get("/", (req, res) => {
       auth: "/auth",
       users: "/users",
       posts: "/posts",
+      comments: "/comments",
     },
   });
 });
@@ -143,6 +145,7 @@ app.use("/users/profile", updateLimiter); // Apply update limiter to profile upd
 app.use("/users/account", deleteLimiter); // Apply delete limiter to account deletion
 app.use("/users", userRoutes);
 app.use("/posts", postRoutes);
+app.use("/comments", commentRoutes);
 app.use("/upload", uploadRoutes);
 
 // Serve uploaded files statically

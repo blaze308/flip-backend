@@ -59,6 +59,12 @@ const auditLogSchema = new mongoose.Schema(
         "post_share",
         "post_hide",
         "post_unhide",
+        // Comments
+        "comment_create",
+        "comment_update",
+        "comment_delete",
+        "comment_like",
+        "comment_unlike",
         // Social
         "user_follow",
         "user_unfollow",
@@ -76,7 +82,15 @@ const auditLogSchema = new mongoose.Schema(
     // Resource affected (optional)
     resource: {
       type: String,
-      enum: ["user", "profile", "account", "session", "data", "post"],
+      enum: [
+        "user",
+        "profile",
+        "account",
+        "session",
+        "data",
+        "post",
+        "comment",
+      ],
     },
 
     resourceId: String,
