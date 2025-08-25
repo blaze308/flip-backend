@@ -31,6 +31,7 @@ const {
 // Import routes
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/users");
+const postRoutes = require("./routes/posts");
 
 // Initialize Express app
 const app = express();
@@ -130,6 +131,7 @@ app.get("/", (req, res) => {
     endpoints: {
       auth: "/auth",
       users: "/users",
+      posts: "/posts",
     },
   });
 });
@@ -139,6 +141,7 @@ app.use("/auth", authLimiter, authRoutes);
 app.use("/users/profile", updateLimiter); // Apply update limiter to profile updates
 app.use("/users/account", deleteLimiter); // Apply delete limiter to account deletion
 app.use("/users", userRoutes);
+app.use("/posts", postRoutes);
 
 // Security error handler (before global error handler)
 app.use(securityErrorHandler);
@@ -216,6 +219,7 @@ const startServer = async () => {
    • Health Check: http://${HOST}:${PORT}/health
    • Authentication: http://${HOST}:${PORT}/auth
    • User Management: http://${HOST}:${PORT}/users
+   • Posts: http://${HOST}:${PORT}/posts
 
 🔒 Security Features:
    • Rate limiting enabled
