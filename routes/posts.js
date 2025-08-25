@@ -65,17 +65,35 @@ router.get(
         .lean();
 
       // Add user interaction data
-      const postsWithInteractions = posts.map((post) => ({
-        ...post,
-        isLiked: post.likedBy.includes(user._id),
-        username:
-          post.userId?.displayName ||
-          `${post.userId?.profile?.firstName || ""} ${
-            post.userId?.profile?.lastName || ""
-          }`.trim() ||
-          "Unknown User",
-        userAvatar: post.userId?.photoURL,
-      }));
+      const postsWithInteractions = posts.map((post) => {
+        // Debug: Log like check for posts with likes
+        if (post.likes > 0) {
+          console.log(`Debug: Post ${post._id} like check:`);
+          console.log(`  - user._id: ${user._id} (type: ${typeof user._id})`);
+          console.log(`  - likedBy: ${JSON.stringify(post.likedBy)}`);
+          console.log(`  - likedBy[0] type: ${typeof post.likedBy[0]}`);
+          console.log(`  - includes check: ${post.likedBy.includes(user._id)}`);
+          console.log(
+            `  - string includes: ${post.likedBy
+              .map((id) => id.toString())
+              .includes(user._id.toString())}`
+          );
+        }
+
+        return {
+          ...post,
+          isLiked: post.likedBy
+            .map((id) => id.toString())
+            .includes(user._id.toString()),
+          username:
+            post.userId?.displayName ||
+            `${post.userId?.profile?.firstName || ""} ${
+              post.userId?.profile?.lastName || ""
+            }`.trim() ||
+            "Unknown User",
+          userAvatar: post.userId?.photoURL,
+        };
+      });
 
       res.json({
         success: true,
@@ -173,7 +191,9 @@ router.get(
       // Add user interaction data
       const postsWithInteractions = posts.map((post) => ({
         ...post,
-        isLiked: post.likedBy.includes(user._id),
+        isLiked: post.likedBy
+          .map((id) => id.toString())
+          .includes(user._id.toString()),
         username:
           post.userId?.displayName ||
           `${post.userId?.profile?.firstName || ""} ${
@@ -468,7 +488,9 @@ router.get(
       // Format response
       const responsePost = {
         ...post.toJSON(),
-        isLiked: post.likedBy.includes(user._id),
+        isLiked: post.likedBy
+          .map((id) => id.toString())
+          .includes(user._id.toString()),
         username:
           post.userId?.displayName ||
           `${post.userId?.profile?.firstName || ""} ${
@@ -610,7 +632,9 @@ router.put(
       // Format response
       const responsePost = {
         ...post.toJSON(),
-        isLiked: post.likedBy.includes(user._id),
+        isLiked: post.likedBy
+          .map((id) => id.toString())
+          .includes(user._id.toString()),
         username:
           post.userId?.displayName ||
           `${post.userId?.profile?.firstName || ""} ${
@@ -764,7 +788,14 @@ router.post(
         });
       }
 
-      const isLiked = post.likedBy.includes(user._id);
+      const isLiked = post.likedBy
+        .map((id) => id.toString())
+        .includes(user._id.toString());
+
+      console.log(`Debug: Like toggle for post ${postId}:`);
+      console.log(`  - user._id: ${user._id}`);
+      console.log(`  - likedBy: ${JSON.stringify(post.likedBy)}`);
+      console.log(`  - isLiked: ${isLiked}`);
 
       if (isLiked) {
         await post.unlike(user._id);
