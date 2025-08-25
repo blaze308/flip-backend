@@ -31,20 +31,83 @@ const storage = multer.diskStorage({
 });
 
 const imageFilter = (req, file, cb) => {
-  // Check if file is an image
-  if (file.mimetype.startsWith("image/")) {
+  console.log("📸 Image filter - File details:", {
+    fieldname: file.fieldname,
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size,
+  });
+
+  // Check if file is an image by MIME type
+  const validImageTypes = [
+    "image/jpeg",
+    "image/jpg", 
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
+    "image/tiff",
+    "image/svg+xml"
+  ];
+
+  // Also check by file extension as fallback
+  const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff', '.svg'];
+  const fileExtension = path.extname(file.originalname).toLowerCase();
+
+  const isValidMimeType = file.mimetype && validImageTypes.includes(file.mimetype);
+  const isValidExtension = validExtensions.includes(fileExtension);
+
+  if (isValidMimeType || isValidExtension) {
+    console.log("📸 Image filter - File accepted");
     cb(null, true);
   } else {
-    cb(new Error("Only image files are allowed!"), false);
+    console.error("📸 Image filter - File rejected:", {
+      mimetype: file.mimetype,
+      extension: fileExtension,
+      originalname: file.originalname
+    });
+    cb(new Error(`Only image files are allowed! Received: ${file.mimetype || 'unknown'} (${fileExtension})`), false);
   }
 };
 
 const videoFilter = (req, file, cb) => {
-  // Check if file is a video
-  if (file.mimetype.startsWith("video/")) {
+  console.log("🎥 Video filter - File details:", {
+    fieldname: file.fieldname,
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size,
+  });
+
+  // Check if file is a video by MIME type
+  const validVideoTypes = [
+    "video/mp4",
+    "video/mpeg",
+    "video/quicktime",
+    "video/x-msvideo", // .avi
+    "video/x-ms-wmv",  // .wmv
+    "video/webm",
+    "video/3gpp",      // .3gp
+    "video/x-flv",     // .flv
+    "video/x-matroska" // .mkv
+  ];
+
+  // Also check by file extension as fallback
+  const validExtensions = ['.mp4', '.mpeg', '.mpg', '.mov', '.avi', '.wmv', '.webm', '.3gp', '.flv', '.mkv'];
+  const fileExtension = path.extname(file.originalname).toLowerCase();
+
+  const isValidMimeType = file.mimetype && validVideoTypes.includes(file.mimetype);
+  const isValidExtension = validExtensions.includes(fileExtension);
+
+  if (isValidMimeType || isValidExtension) {
+    console.log("🎥 Video filter - File accepted");
     cb(null, true);
   } else {
-    cb(new Error("Only video files are allowed!"), false);
+    console.error("🎥 Video filter - File rejected:", {
+      mimetype: file.mimetype,
+      extension: fileExtension,
+      originalname: file.originalname
+    });
+    cb(new Error(`Only video files are allowed! Received: ${file.mimetype || 'unknown'} (${fileExtension})`), false);
   }
 };
 
