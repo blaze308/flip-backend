@@ -1,11 +1,12 @@
 const mongoose = require("mongoose");
 
 /**
- * Comment Schema for post comments
+ * Comment Schema for MongoDB
+ * Supports nested comments (replies) and user interactions
  */
 const commentSchema = new mongoose.Schema(
   {
-    // Post reference
+    // Basic Comment Information
     postId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Post",
@@ -13,7 +14,6 @@ const commentSchema = new mongoose.Schema(
       index: true,
     },
 
-    // User who created the comment
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -27,15 +27,15 @@ const commentSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Comment content
+    // Comment Content
     content: {
       type: String,
       required: true,
       trim: true,
-      maxlength: [1000, "Comment cannot exceed 1000 characters"],
+      maxlength: [2000, "Comment content cannot exceed 2000 characters"],
     },
 
-    // Parent comment for replies (optional)
+    // Reply System
     parentCommentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Comment",
@@ -43,7 +43,13 @@ const commentSchema = new mongoose.Schema(
       index: true,
     },
 
-    // Engagement metrics
+    repliesCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // Engagement Metrics
     likes: {
       type: Number,
       default: 0,
@@ -57,38 +63,16 @@ const commentSchema = new mongoose.Schema(
       },
     ],
 
-    // Reply count for parent comments
-    replyCount: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-
-    // Status flags
-    isActive: {
-      type: Boolean,
-      default: true,
-      index: true,
-    },
-
-    isEdited: {
+    // Moderation and Status
+    isDeleted: {
       type: Boolean,
       default: false,
-    },
-
-    // Moderation
-    moderationStatus: {
-      type: String,
-      enum: ["pending", "approved", "rejected", "flagged"],
-      default: "approved",
       index: true,
     },
 
-    // Soft delete
     deletedAt: {
       type: Date,
       default: null,
-      index: true,
     },
 
     deletedBy: {
@@ -96,141 +80,352 @@ const commentSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+
+    // Moderation Status
+    moderationStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected", "flagged"],
+      default: "approved",
+      index: true,
+    },
+
+    moderatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    moderatedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // Reporting System
+    reportCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    reportedBy: [
+      {
+        userId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        reason: {
+          type: String,
+          enum: [
+            "spam",
+            "harassment",
+            "inappropriate",
+            "misinformation",
+            "other",
+          ],
+        },
+        reportedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    // Metadata
+    ipAddress: {
+      type: String,
+      default: null,
+    },
+
+    userAgent: {
+      type: String,
+      default: null,
+    },
+
+    // Edit History
+    editHistory: [
+      {
+        content: String,
+        editedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
+    lastEditedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
-    timestamps: true,
+    timestamps: true, // Automatically adds createdAt and updatedAt
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
   }
 );
 
-// Indexes for performance
-commentSchema.index({ postId: 1, createdAt: -1 });
-commentSchema.index({ userId: 1, createdAt: -1 });
-commentSchema.index({ parentCommentId: 1, createdAt: 1 });
-commentSchema.index({ isActive: 1, moderationStatus: 1, deletedAt: 1 });
+// Indexes for Performance
+commentSchema.index({ postId: 1, createdAt: -1 }); // Comments for a post, newest first
+commentSchema.index({ userId: 1, createdAt: -1 }); // User's comments
+commentSchema.index({ parentCommentId: 1, createdAt: 1 }); // Replies to a comment
+commentSchema.index({ moderationStatus: 1, createdAt: -1 }); // Moderation queue
+commentSchema.index({ isDeleted: 1, createdAt: -1 }); // Active comments
+commentSchema.index({ firebaseUid: 1, postId: 1 }); // User's comments on specific post
 
-// Virtual for formatted time ago
-commentSchema.virtual("timeAgo").get(function () {
-  const now = new Date();
-  const diff = now - this.createdAt;
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return "now";
-  if (minutes < 60) return `${minutes}m`;
-  if (hours < 24) return `${hours}h`;
-  if (days < 7) return `${days}d`;
-  return this.createdAt.toLocaleDateString();
+// Virtual for checking if comment is a reply
+commentSchema.virtual("isReply").get(function () {
+  return this.parentCommentId != null;
 });
 
-// Static method to find comments for a post
+// Virtual for checking if comment is top-level
+commentSchema.virtual("isTopLevel").get(function () {
+  return this.parentCommentId == null;
+});
+
+// Static Methods
+
+/**
+ * Find comments for a specific post
+ */
 commentSchema.statics.findByPost = function (postId, options = {}) {
   const {
     page = 1,
     limit = 20,
     sortBy = "createdAt",
-    sortOrder = -1,
+    sortOrder = "desc",
     includeReplies = false,
+    userId = null,
   } = options;
 
   const query = {
-    postId,
-    isActive: true,
+    postId: mongoose.Types.ObjectId(postId),
+    isDeleted: false,
     moderationStatus: "approved",
-    deletedAt: null,
   };
 
-  // Only get top-level comments unless includeReplies is true
+  // Only top-level comments unless includeReplies is true
   if (!includeReplies) {
     query.parentCommentId = null;
   }
 
-  return this.find(query)
-    .populate(
-      "userId",
-      "displayName photoURL profile.firstName profile.lastName profile.username"
-    )
-    .sort({ [sortBy]: sortOrder })
-    .skip((page - 1) * limit)
-    .limit(limit);
+  const sort = {};
+  sort[sortBy] = sortOrder === "desc" ? -1 : 1;
+
+  const aggregationPipeline = [
+    { $match: query },
+    { $sort: sort },
+    { $skip: (page - 1) * limit },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "userId",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              profilePicture: 1,
+              isVerified: 1,
+            },
+          },
+        ],
+      },
+    },
+    { $unwind: "$userId" },
+    {
+      $addFields: {
+        isLiked: userId
+          ? {
+              $in: [mongoose.Types.ObjectId(userId), "$likedBy"],
+            }
+          : false,
+      },
+    },
+    {
+      $project: {
+        likedBy: 0, // Don't send the full likedBy array
+        reportedBy: 0, // Don't send report details
+        ipAddress: 0,
+        userAgent: 0,
+        editHistory: 0,
+      },
+    },
+  ];
+
+  return this.aggregate(aggregationPipeline);
 };
 
-// Static method to find replies for a comment
-commentSchema.statics.findReplies = function (parentCommentId, options = {}) {
-  const { page = 1, limit = 10, sortBy = "createdAt", sortOrder = 1 } = options;
+/**
+ * Find replies for a specific comment
+ */
+commentSchema.statics.findReplies = function (commentId, options = {}) {
+  const { page = 1, limit = 10, userId = null } = options;
 
-  return this.find({
-    parentCommentId,
-    isActive: true,
+  const query = {
+    parentCommentId: mongoose.Types.ObjectId(commentId),
+    isDeleted: false,
     moderationStatus: "approved",
-    deletedAt: null,
-  })
-    .populate(
-      "userId",
-      "displayName photoURL profile.firstName profile.lastName profile.username"
-    )
-    .sort({ [sortBy]: sortOrder })
-    .skip((page - 1) * limit)
-    .limit(limit);
+  };
+
+  const aggregationPipeline = [
+    { $match: query },
+    { $sort: { createdAt: 1 } }, // Replies in chronological order
+    { $skip: (page - 1) * limit },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: "users",
+        localField: "userId",
+        foreignField: "_id",
+        as: "userId",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              profilePicture: 1,
+              isVerified: 1,
+            },
+          },
+        ],
+      },
+    },
+    { $unwind: "$userId" },
+    {
+      $addFields: {
+        isLiked: userId
+          ? {
+              $in: [mongoose.Types.ObjectId(userId), "$likedBy"],
+            }
+          : false,
+      },
+    },
+    {
+      $project: {
+        likedBy: 0,
+        reportedBy: 0,
+        ipAddress: 0,
+        userAgent: 0,
+        editHistory: 0,
+      },
+    },
+  ];
+
+  return this.aggregate(aggregationPipeline);
 };
 
-// Instance method to check if user liked the comment
-commentSchema.methods.isLikedBy = function (userId) {
-  return this.likedBy.includes(userId);
+/**
+ * Get comment count for a post
+ */
+commentSchema.statics.getCommentCount = function (postId) {
+  return this.countDocuments({
+    postId: mongoose.Types.ObjectId(postId),
+    isDeleted: false,
+    moderationStatus: "approved",
+  });
 };
 
-// Instance method to toggle like
-commentSchema.methods.toggleLike = async function (userId) {
-  const isLiked = this.isLikedBy(userId);
+/**
+ * Soft delete a comment
+ */
+commentSchema.methods.softDelete = function (deletedBy = null) {
+  this.isDeleted = true;
+  this.deletedAt = new Date();
+  this.deletedBy = deletedBy;
+  return this.save();
+};
+
+/**
+ * Like/Unlike a comment
+ */
+commentSchema.methods.toggleLike = function (userId) {
+  const userObjectId = mongoose.Types.ObjectId(userId);
+  const isLiked = this.likedBy.includes(userObjectId);
 
   if (isLiked) {
-    this.likedBy.pull(userId);
+    // Unlike
+    this.likedBy.pull(userObjectId);
     this.likes = Math.max(0, this.likes - 1);
   } else {
-    this.likedBy.push(userId);
+    // Like
+    this.likedBy.push(userObjectId);
     this.likes += 1;
   }
 
-  await this.save();
-  return !isLiked;
+  return this.save();
 };
 
-// Pre-save middleware to update reply count on parent
-commentSchema.pre("save", async function (next) {
-  if (this.isNew && this.parentCommentId) {
-    await this.constructor.findByIdAndUpdate(this.parentCommentId, {
-      $inc: { replyCount: 1 },
-    });
+/**
+ * Add a reply to this comment
+ */
+commentSchema.methods.addReply = function () {
+  this.repliesCount += 1;
+  return this.save();
+};
+
+/**
+ * Remove a reply from this comment
+ */
+commentSchema.methods.removeReply = function () {
+  this.repliesCount = Math.max(0, this.repliesCount - 1);
+  return this.save();
+};
+
+// Pre-save middleware
+commentSchema.pre("save", function (next) {
+  // Update lastEditedAt if content was modified
+  if (this.isModified("content") && !this.isNew) {
+    this.lastEditedAt = new Date();
+
+    // Add to edit history
+    if (
+      this.content !== this.editHistory[this.editHistory.length - 1]?.content
+    ) {
+      this.editHistory.push({
+        content: this.content,
+        editedAt: new Date(),
+      });
+    }
   }
+
   next();
 });
 
-// Pre-remove middleware to update reply count on parent
-commentSchema.pre("deleteOne", { document: true }, async function (next) {
-  if (this.parentCommentId) {
-    await this.constructor.findByIdAndUpdate(this.parentCommentId, {
-      $inc: { replyCount: -1 },
+// Post-save middleware to update post comment count
+commentSchema.post("save", async function (doc) {
+  if (doc.isNew && !doc.isDeleted) {
+    // New comment created, increment post comment count
+    await mongoose.model("Post").findByIdAndUpdate(doc.postId, {
+      $inc: { comments: 1 },
     });
+
+    // If it's a reply, increment parent comment reply count
+    if (doc.parentCommentId) {
+      await mongoose.model("Comment").findByIdAndUpdate(doc.parentCommentId, {
+        $inc: { repliesCount: 1 },
+      });
+    }
   }
-  next();
 });
 
-// Soft delete method
-commentSchema.methods.softDelete = async function (deletedBy) {
-  this.deletedAt = new Date();
-  this.deletedBy = deletedBy;
-  this.isActive = false;
-
-  // Update reply count on parent if this is a reply
-  if (this.parentCommentId) {
-    await this.constructor.findByIdAndUpdate(this.parentCommentId, {
-      $inc: { replyCount: -1 },
+// Post-save middleware for soft delete
+commentSchema.post("save", async function (doc) {
+  if (doc.isModified("isDeleted") && doc.isDeleted) {
+    // Comment was soft deleted, decrement post comment count
+    await mongoose.model("Post").findByIdAndUpdate(doc.postId, {
+      $inc: { comments: -1 },
     });
+
+    // If it's a reply, decrement parent comment reply count
+    if (doc.parentCommentId) {
+      await mongoose.model("Comment").findByIdAndUpdate(doc.parentCommentId, {
+        $inc: { repliesCount: -1 },
+      });
+    }
   }
+});
 
-  await this.save();
-};
+const Comment = mongoose.model("Comment", commentSchema);
 
-module.exports = mongoose.model("Comment", commentSchema);
+module.exports = Comment;

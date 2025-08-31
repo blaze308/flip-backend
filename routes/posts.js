@@ -30,10 +30,6 @@ router.get(
   ],
   async (req, res) => {
     try {
-      console.log("🔓 Public posts route hit - no auth required");
-      console.log("🔓 Headers:", req.headers);
-      console.log("🔓 Authorization header:", req.headers.authorization);
-
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({
@@ -84,6 +80,18 @@ router.get(
           "Unknown User",
         userAvatar: post.userId?.photoURL,
       }));
+
+      // Debug: Log first post structure if any posts exist
+      if (publicPosts.length > 0) {
+        console.log("🔓 Public posts response sample:");
+        console.log("   - Post keys:", Object.keys(publicPosts[0]));
+        console.log("   - _id:", publicPosts[0]._id);
+        console.log("   - userId type:", typeof publicPosts[0].userId);
+        console.log("   - userId value:", publicPosts[0].userId);
+        console.log("   - username:", publicPosts[0].username);
+        console.log("   - createdAt:", publicPosts[0].createdAt);
+        console.log("   - type:", publicPosts[0].type);
+      }
 
       res.json({
         success: true,
