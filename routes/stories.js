@@ -119,7 +119,7 @@ router.get(
             isActive: true,
             expiresAt: { $gt: new Date() },
             privacy: "public", // Only public stories
-          }
+          },
         },
         {
           $group: {
@@ -129,17 +129,17 @@ router.get(
             stories: { $push: "$$ROOT" },
             lastStoryTime: { $max: "$createdAt" },
             hasUnviewedStories: { $literal: true }, // Always show as unviewed for guests
-          }
+          },
         },
         {
-          $sort: { lastStoryTime: -1 }
+          $sort: { lastStoryTime: -1 },
         },
         {
-          $skip: offset
+          $skip: offset,
         },
         {
-          $limit: limit
-        }
+          $limit: limit,
+        },
       ]);
 
       res.json({
@@ -150,7 +150,6 @@ router.get(
           hasMore: storyGroups.length === limit,
         },
       });
-
     } catch (error) {
       console.error("Error fetching public stories feed:", error);
       res.status(500).json({
@@ -388,29 +387,35 @@ router.get(
  * @desc    Get current user's stories
  * @access  Private
  */
-router.get("/my-stories", authenticateToken, requireSyncedUser, async (req, res) => {
-  try {
-    const stories = await Story.find({
-      userId: req.user._id,
-      isActive: true,
-    }).sort({ createdAt: -1 });
+router.get(
+  "/my-stories",
+  authenticateToken,
+  requireSyncedUser,
+  async (req, res) => {
+    try {
+      const stories = await Story.find({
+        userId: req.user._id,
+        isActive: true,
+      }).sort({ createdAt: -1 });
 
-    res.json({
-      success: true,
-      message: "My stories retrieved successfully",
-      data: {
-        stories,
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching my stories:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch my stories",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
+      res.json({
+        success: true,
+        message: "My stories retrieved successfully",
+        data: {
+          stories,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching my stories:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch my stories",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      });
+    }
   }
-});
+);
 
 /**
  * @route   POST /api/stories/:storyId/view
