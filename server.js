@@ -30,6 +30,7 @@ const {
 
 // Import routes
 const authRoutes = require("./routes/auth");
+const tokenRoutes = require("./routes/token");
 const userRoutes = require("./routes/users");
 const postRoutes = require("./routes/posts");
 const commentRoutes = require("./routes/comments");
@@ -141,6 +142,7 @@ app.get("/", (req, res) => {
 
 // API Routes with specific rate limiting
 app.use("/auth", authLimiter, authRoutes);
+app.use("/token", authLimiter, tokenRoutes);
 app.use("/users/profile", updateLimiter); // Apply update limiter to profile updates
 app.use("/users/account", deleteLimiter); // Apply delete limiter to account deletion
 app.use("/users", userRoutes);
