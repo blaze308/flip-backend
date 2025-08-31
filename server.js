@@ -143,15 +143,15 @@ app.get("/", (req, res) => {
 });
 
 // API Routes with specific rate limiting
-app.use("/auth", authLimiter, authRoutes);
-app.use("/token", authLimiter, tokenRoutes);
-app.use("/users/profile", updateLimiter); // Apply update limiter to profile updates
-app.use("/users/account", deleteLimiter); // Apply delete limiter to account deletion
-app.use("/users", userRoutes);
-app.use("/posts", postRoutes);
-app.use("/comments", commentRoutes);
-app.use("/upload", uploadRoutes);
-app.use("/stories", storyRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/token", authLimiter, tokenRoutes);
+app.use("/api/users/profile", updateLimiter); // Apply update limiter to profile updates
+app.use("/api/users/account", deleteLimiter); // Apply delete limiter to account deletion
+app.use("/api/users", userRoutes);
+app.use("/api/posts", postRoutes);
+app.use("/api/comments", commentRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/stories", storyRoutes);
 
 // Serve uploaded files statically
 app.use("/uploads", express.static("uploads"));
