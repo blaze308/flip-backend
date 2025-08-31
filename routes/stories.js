@@ -98,6 +98,72 @@ async function getUserRelationships(userId) {
 // Routes
 
 /**
+ * @route   GET /api/stories/public
+ * @desc    Get public stories feed (no authentication required)
+ * @access  Public
+ */
+router.get(
+  "/public",
+  [
+    query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
+    query("offset").optional().isInt({ min: 0 }).toInt(),
+  ],
+  async (req, res) => {
+    try {
+      const { limit = 50, offset = 0 } = req.query;
+
+      // Get public stories only
+      const storyGroups = await Story.aggregate([
+        {
+          $match: {
+            isActive: true,
+            expiresAt: { $gt: new Date() },
+            privacy: "public", // Only public stories
+          }
+        },
+        {
+          $group: {
+            _id: "$userId",
+            username: { $first: "$username" },
+            userAvatar: { $first: "$userAvatar" },
+            stories: { $push: "$$ROOT" },
+            lastStoryTime: { $max: "$createdAt" },
+            hasUnviewedStories: { $literal: true }, // Always show as unviewed for guests
+          }
+        },
+        {
+          $sort: { lastStoryTime: -1 }
+        },
+        {
+          $skip: offset
+        },
+        {
+          $limit: limit
+        }
+      ]);
+
+      res.json({
+        success: true,
+        message: "Public stories feed retrieved successfully",
+        data: {
+          feed: storyGroups,
+          hasMore: storyGroups.length === limit,
+        },
+      });
+
+    } catch (error) {
+      console.error("Error fetching public stories feed:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch public stories feed",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
+      });
+    }
+  }
+);
+
+/**
  * @route   POST /api/stories
  * @desc    Create a new story
  * @access  Private
