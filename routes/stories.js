@@ -5,7 +5,7 @@ const path = require("path");
 const fs = require("fs").promises;
 const Story = require("../models/Story");
 const User = require("../models/User");
-const { jwtAuth } = require("../middleware/jwtAuth");
+const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
 const { body, validationResult, param, query } = require("express-validator");
 
 // Configure multer for file uploads
@@ -104,7 +104,8 @@ async function getUserRelationships(userId) {
  */
 router.post(
   "/",
-  jwtAuth,
+  authenticateToken,
+  requireSyncedUser,
   upload.single("media"),
   validateStoryCreation,
   async (req, res) => {
@@ -148,18 +149,12 @@ router.post(
         });
       }
 
-      // Get user information
-      const user = await User.findById(req.user.uid);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found",
-        });
-      }
+      // Get user information (req.user is already the database user from requireSyncedUser)
+      const user = req.user;
 
       // Prepare story data
       const storyData = {
-        userId: req.user.uid,
+        userId: user._id,
         username: user.username,
         userAvatar: user.profileImageUrl,
         mediaType,
@@ -224,7 +219,8 @@ router.post(
  */
 router.get(
   "/feed",
-  jwtAuth,
+  authenticateToken,
+  requireSyncedUser,
   [
     query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
     query("offset").optional().isInt({ min: 0 }).toInt(),
@@ -235,13 +231,13 @@ router.get(
 
       // Get user's relationships
       const { friends, closeFriends } = await getUserRelationships(
-        req.user.uid
+        req.user._id
       );
       const followingIds = []; // TODO: Get following list from user relationships
 
       // Get stories feed
       const storyGroups = await Story.getStoriesFeed(
-        req.user.uid,
+        req.user._id,
         followingIds,
         friends
       );
@@ -273,7 +269,8 @@ router.get(
  */
 router.get(
   "/user/:userId",
-  jwtAuth,
+  authenticateToken,
+  requireSyncedUser,
   [param("userId").isMongoId().withMessage("Invalid user ID")],
   async (req, res) => {
     try {
@@ -290,7 +287,7 @@ router.get(
 
       // Get user's relationships for privacy checking
       const { friends, closeFriends } = await getUserRelationships(
-        req.user.uid
+        req.user._id
       );
 
       // Get user's stories
@@ -298,7 +295,7 @@ router.get(
 
       // Filter stories based on privacy settings
       const visibleStories = stories.filter((story) =>
-        story.canBeViewedBy(req.user.uid, friends, closeFriends)
+        story.canBeViewedBy(req.user._id, friends, closeFriends)
       );
 
       res.json({
@@ -325,10 +322,10 @@ router.get(
  * @desc    Get current user's stories
  * @access  Private
  */
-router.get("/my-stories", jwtAuth, async (req, res) => {
+router.get("/my-stories", authenticateToken, requireSyncedUser, async (req, res) => {
   try {
     const stories = await Story.find({
-      userId: req.user.uid,
+      userId: req.user._id,
       isActive: true,
     }).sort({ createdAt: -1 });
 
@@ -356,7 +353,8 @@ router.get("/my-stories", jwtAuth, async (req, res) => {
  */
 router.post(
   "/:storyId/view",
-  jwtAuth,
+  authenticateToken,
+  requireSyncedUser,
   [param("storyId").isMongoId().withMessage("Invalid story ID")],
   async (req, res) => {
     try {
@@ -381,20 +379,20 @@ router.post(
 
       // Check if user can view this story
       const { friends, closeFriends } = await getUserRelationships(
-        req.user.uid
+        req.user._id
       );
-      if (!story.canBeViewedBy(req.user.uid, friends, closeFriends)) {
+      if (!story.canBeViewedBy(req.user._id, friends, closeFriends)) {
         return res.status(403).json({
           success: false,
           message: "You do not have permission to view this story",
         });
       }
 
-      // Get user info
-      const user = await User.findById(req.user.uid);
+      // Get user info (req.user is already the database user)
+      const user = req.user;
 
       // Add viewer
-      await story.addViewer(req.user.uid, user.username, user.profileImageUrl);
+      await story.addViewer(user._id, user.username, user.profileImageUrl);
 
       res.json({
         success: true,
@@ -419,7 +417,8 @@ router.post(
  */
 router.post(
   "/:storyId/react",
-  jwtAuth,
+  authenticateToken,
+  requireSyncedUser,
   [
     param("storyId").isMongoId().withMessage("Invalid story ID"),
     ...validateReaction,
@@ -456,21 +455,21 @@ router.post(
 
       // Check if user can view this story
       const { friends, closeFriends } = await getUserRelationships(
-        req.user.uid
+        req.user._id
       );
-      if (!story.canBeViewedBy(req.user.uid, friends, closeFriends)) {
+      if (!story.canBeViewedBy(req.user._id, friends, closeFriends)) {
         return res.status(403).json({
           success: false,
           message: "You do not have permission to react to this story",
         });
       }
 
-      // Get user info
-      const user = await User.findById(req.user.uid);
+      // Get user info (req.user is already the database user)
+      const user = req.user;
 
       // Add reaction
       await story.addReaction(
-        req.user.uid,
+        user._id,
         user.username,
         reactionType,
         user.profileImageUrl
@@ -499,7 +498,8 @@ router.post(
  */
 router.delete(
   "/:storyId/react",
-  jwtAuth,
+  authenticateToken,
+  requireSyncedUser,
   [param("storyId").isMongoId().withMessage("Invalid story ID")],
   async (req, res) => {
     try {
@@ -523,7 +523,7 @@ router.delete(
       }
 
       // Remove reaction
-      await story.removeReaction(req.user.uid);
+      await story.removeReaction(req.user._id);
 
       res.json({
         success: true,
@@ -548,7 +548,8 @@ router.delete(
  */
 router.get(
   "/:storyId/viewers",
-  jwtAuth,
+  authenticateToken,
+  requireSyncedUser,
   [param("storyId").isMongoId().withMessage("Invalid story ID")],
   async (req, res) => {
     try {
@@ -572,7 +573,7 @@ router.get(
       }
 
       // Check if user owns this story
-      if (story.userId.toString() !== req.user.uid) {
+      if (story.userId.toString() !== req.user._id) {
         return res.status(403).json({
           success: false,
           message: "You can only view viewers of your own stories",
@@ -605,7 +606,8 @@ router.get(
  */
 router.delete(
   "/:storyId",
-  jwtAuth,
+  authenticateToken,
+  requireSyncedUser,
   [param("storyId").isMongoId().withMessage("Invalid story ID")],
   async (req, res) => {
     try {
@@ -629,7 +631,7 @@ router.delete(
       }
 
       // Check if user owns this story
-      if (story.userId.toString() !== req.user.uid) {
+      if (story.userId.toString() !== req.user._id) {
         return res.status(403).json({
           success: false,
           message: "You can only delete your own stories",
@@ -665,7 +667,8 @@ router.delete(
  */
 router.get(
   "/analytics",
-  jwtAuth,
+  authenticateToken,
+  requireSyncedUser,
   [
     query("startDate").optional().isISO8601().toDate(),
     query("endDate").optional().isISO8601().toDate(),
@@ -687,7 +690,7 @@ router.get(
       } = req.query;
 
       const analytics = await Story.getStoryAnalytics(
-        req.user.uid,
+        req.user._id,
         startDate,
         endDate
       );
