@@ -8,6 +8,175 @@ const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
 const router = express.Router();
 
 /**
+ * GET /posts/public
+ *
+ * Get public posts (no authentication required)
+ */
+router.get(
+  "/public",
+  [
+    query("page")
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage("Page must be a positive integer"),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 50 })
+      .withMessage("Limit must be between 1 and 50"),
+    query("type")
+      .optional()
+      .isIn(["text", "image", "video"])
+      .withMessage("Invalid post type"),
+  ],
+  async (req, res) => {
+    try {
+      console.log("🔓 Public posts route hit - no auth required");
+      console.log("🔓 Headers:", req.headers);
+      console.log("🔓 Authorization header:", req.headers.authorization);
+
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 20;
+      const type = req.query.type;
+      const skip = (page - 1) * limit;
+
+      // Build query for public posts only
+      let query = Post.find({
+        isActive: true,
+        isPublic: true,
+        deletedAt: null,
+        moderationStatus: "approved",
+      });
+
+      if (type) {
+        query = query.where("type", type);
+      }
+
+      const posts = await query
+        .populate(
+          "userId",
+          "displayName photoURL profile.firstName profile.lastName"
+        )
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      // Format posts for public consumption (no user interaction data)
+      const publicPosts = posts.map((post) => ({
+        ...post,
+        isLiked: false, // Guest users can't like posts
+        isFollowingUser: false, // Guest users can't follow
+        username:
+          post.userId?.profile?.username ||
+          post.userId?.displayName ||
+          `${post.userId?.profile?.firstName || ""} ${
+            post.userId?.profile?.lastName || ""
+          }`.trim() ||
+          "Unknown User",
+        userAvatar: post.userId?.photoURL,
+      }));
+
+      res.json({
+        success: true,
+        message: "Public posts retrieved successfully",
+        data: {
+          posts: publicPosts,
+          pagination: {
+            page,
+            limit,
+            hasMore: posts.length === limit,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Get public posts error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to retrieve public posts",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
+      });
+    }
+  }
+);
+
+/**
+ * GET /posts/public/:postId
+ *
+ * Get a specific public post by ID (no authentication required)
+ */
+router.get("/public/:postId", async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    const post = await Post.findOne({
+      _id: postId,
+      isActive: true,
+      isPublic: true,
+      deletedAt: null,
+      moderationStatus: "approved",
+    }).populate(
+      "userId",
+      "displayName photoURL profile.firstName profile.lastName"
+    );
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: "Post not found or not public",
+      });
+    }
+
+    // Increment view count
+    await post.incrementViews();
+
+    // Format response for public consumption
+    const responsePost = {
+      ...post.toJSON(),
+      isLiked: false, // Guest users can't like posts
+      isFollowingUser: false, // Guest users can't follow
+      username:
+        post.userId?.profile?.username ||
+        post.userId?.displayName ||
+        `${post.userId?.profile?.firstName || ""} ${
+          post.userId?.profile?.lastName || ""
+        }`.trim() ||
+        "Unknown User",
+      userAvatar: post.userId?.photoURL,
+    };
+
+    res.json({
+      success: true,
+      message: "Public post retrieved successfully",
+      data: {
+        post: responsePost,
+      },
+    });
+  } catch (error) {
+    console.error("Get public post error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve public post",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+});
+
+/**
  * GET /posts/feed
  *
  * Get posts for user's feed (public posts, ordered by creation date)
