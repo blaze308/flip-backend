@@ -35,6 +35,7 @@ const userRoutes = require("./routes/users");
 const postRoutes = require("./routes/posts");
 const commentRoutes = require("./routes/comments");
 const uploadRoutes = require("./routes/upload");
+const storyRoutes = require("./routes/stories");
 
 // Initialize Express app
 const app = express();
@@ -136,6 +137,7 @@ app.get("/", (req, res) => {
       users: "/users",
       posts: "/posts",
       comments: "/comments",
+      stories: "/stories",
     },
   });
 });
@@ -149,6 +151,7 @@ app.use("/users", userRoutes);
 app.use("/posts", postRoutes);
 app.use("/comments", commentRoutes);
 app.use("/upload", uploadRoutes);
+app.use("/stories", storyRoutes);
 
 // Serve uploaded files statically
 app.use("/uploads", express.static("uploads"));
@@ -230,6 +233,7 @@ const startServer = async () => {
    • Authentication: http://${HOST}:${PORT}/auth
    • User Management: http://${HOST}:${PORT}/users
    • Posts: http://${HOST}:${PORT}/posts
+   • Stories: http://${HOST}:${PORT}/stories
 
 🔒 Security Features:
    • Rate limiting enabled
