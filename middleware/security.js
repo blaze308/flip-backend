@@ -149,13 +149,14 @@ const validateRequest = (req, res, next) => {
   const contentType = req.get("Content-Type");
 
   if (["POST", "PUT", "PATCH"].includes(req.method)) {
-    // Allow multipart/form-data for upload endpoints
-    const isUploadEndpoint = req.path.startsWith("/upload");
+    // Allow multipart/form-data for upload endpoints and story creation
+    const isUploadEndpoint =
+      req.path.startsWith("/upload") || req.path === "/api/stories";
     const isMultipart =
       contentType && contentType.includes("multipart/form-data");
     const isJson = contentType && contentType.includes("application/json");
 
-    if (!isUploadEndpoint && !isJson) {
+    if (!isUploadEndpoint && !isMultipart && !isJson) {
       return res.status(400).json({
         success: false,
         message: "Content-Type must be application/json",

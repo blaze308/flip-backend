@@ -217,8 +217,14 @@ router.post(
   validateStoryCreation,
   async (req, res) => {
     try {
+      console.log("📖 Story Creation Request Debug:");
+      console.log("  - Content-Type:", req.headers["content-type"]);
+      console.log("  - Body:", req.body);
+      console.log("  - File:", req.file);
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log("📖 Validation Errors:", errors.array());
         return res.status(400).json({
           success: false,
           message: "Validation failed",
