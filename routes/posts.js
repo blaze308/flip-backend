@@ -4,6 +4,7 @@ const Post = require("../models/Post");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT } = require("../middleware/jwtAuth");
 
 const router = express.Router();
 
@@ -191,7 +192,7 @@ router.get("/public/:postId", async (req, res) => {
  */
 router.get(
   "/feed",
-  authenticateToken,
+  authenticateJWT,
   requireSyncedUser,
   [
     query("page")
@@ -329,7 +330,7 @@ router.get(
  */
 router.get(
   "/user/:userId",
-  authenticateToken,
+  authenticateJWT,
   requireSyncedUser,
   [
     query("page")
@@ -466,7 +467,7 @@ router.get(
  */
 router.post(
   "/",
-  authenticateToken,
+  authenticateJWT,
   requireSyncedUser,
   [
     body("type")
@@ -672,88 +673,83 @@ router.post(
  *
  * Get a specific post by ID
  */
-router.get(
-  "/:postId",
-  authenticateToken,
-  requireSyncedUser,
-  async (req, res) => {
-    try {
-      const { postId } = req.params;
-      const { user } = req;
+router.get("/:postId", authenticateJWT, requireSyncedUser, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { user } = req;
 
-      const post = await Post.findOne({
-        _id: postId,
-        isActive: true,
-        deletedAt: null,
-      }).populate(
-        "userId",
-        "displayName photoURL profile.firstName profile.lastName"
-      );
+    const post = await Post.findOne({
+      _id: postId,
+      isActive: true,
+      deletedAt: null,
+    }).populate(
+      "userId",
+      "displayName photoURL profile.firstName profile.lastName"
+    );
 
-      if (!post) {
-        return res.status(404).json({
-          success: false,
-          message: "Post not found",
-        });
-      }
-
-      // Check if user can view this post
-      const canViewPost =
-        post.isPublic || // Public posts are visible to everyone
-        post.userId._id.toString() === user._id.toString() || // Post owner can always see their posts
-        user.following
-          .map((id) => id.toString())
-          .includes(post.userId._id.toString()); // Followers can see private posts
-
-      if (!canViewPost) {
-        return res.status(403).json({
-          success: false,
-          message: "Access denied",
-        });
-      }
-
-      // Increment view count
-      await post.incrementViews();
-
-      // Format response
-      const responsePost = {
-        ...post.toJSON(),
-        isLiked: post.likedBy
-          .map((id) => id.toString())
-          .includes(user._id.toString()),
-        isFollowingUser: user.following
-          .map((id) => id.toString())
-          .includes(post.userId._id.toString()),
-        username:
-          post.userId?.profile?.username ||
-          post.userId?.displayName ||
-          `${post.userId?.profile?.firstName || ""} ${
-            post.userId?.profile?.lastName || ""
-          }`.trim() ||
-          "Unknown User",
-        userAvatar: post.userId?.photoURL,
-      };
-
-      res.json({
-        success: true,
-        message: "Post retrieved successfully",
-        data: {
-          post: responsePost,
-        },
-      });
-    } catch (error) {
-      console.error("Get post error:", error);
-      res.status(500).json({
+    if (!post) {
+      return res.status(404).json({
         success: false,
-        message: "Failed to retrieve post",
-        error:
-          process.env.NODE_ENV === "development"
-            ? error.message
-            : "Internal server error",
+        message: "Post not found",
       });
     }
+
+    // Check if user can view this post
+    const canViewPost =
+      post.isPublic || // Public posts are visible to everyone
+      post.userId._id.toString() === user._id.toString() || // Post owner can always see their posts
+      user.following
+        .map((id) => id.toString())
+        .includes(post.userId._id.toString()); // Followers can see private posts
+
+    if (!canViewPost) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
+    // Increment view count
+    await post.incrementViews();
+
+    // Format response
+    const responsePost = {
+      ...post.toJSON(),
+      isLiked: post.likedBy
+        .map((id) => id.toString())
+        .includes(user._id.toString()),
+      isFollowingUser: user.following
+        .map((id) => id.toString())
+        .includes(post.userId._id.toString()),
+      username:
+        post.userId?.profile?.username ||
+        post.userId?.displayName ||
+        `${post.userId?.profile?.firstName || ""} ${
+          post.userId?.profile?.lastName || ""
+        }`.trim() ||
+        "Unknown User",
+      userAvatar: post.userId?.photoURL,
+    };
+
+    res.json({
+      success: true,
+      message: "Post retrieved successfully",
+      data: {
+        post: responsePost,
+      },
+    });
+  } catch (error) {
+    console.error("Get post error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve post",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
   }
-);
+});
 
 /**
  * PUT /posts/:postId
@@ -762,7 +758,7 @@ router.get(
  */
 router.put(
   "/:postId",
-  authenticateToken,
+  authenticateJWT,
   requireSyncedUser,
   [
     body("content")
@@ -922,7 +918,7 @@ router.put(
  */
 router.delete(
   "/:postId",
-  authenticateToken,
+  authenticateJWT,
   requireSyncedUser,
   async (req, res) => {
     try {
@@ -1003,7 +999,7 @@ router.delete(
  */
 router.post(
   "/:postId/like",
-  authenticateToken,
+  authenticateJWT,
   requireSyncedUser,
   async (req, res) => {
     try {
@@ -1067,7 +1063,7 @@ router.post(
  */
 router.post(
   "/:postId/share",
-  authenticateToken,
+  authenticateJWT,
   requireSyncedUser,
   async (req, res) => {
     try {
@@ -1116,7 +1112,7 @@ router.post(
  */
 router.post(
   "/:postId/bookmark",
-  authenticateToken,
+  authenticateJWT,
   requireSyncedUser,
   async (req, res) => {
     try {
@@ -1188,7 +1184,7 @@ router.post(
  */
 router.post(
   "/:postId/hide",
-  authenticateToken,
+  authenticateJWT,
   requireSyncedUser,
   async (req, res) => {
     try {
