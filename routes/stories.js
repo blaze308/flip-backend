@@ -248,6 +248,12 @@ router.post(
 
       // Get user information (req.user is already the database user from requireSyncedUser)
       const user = req.user;
+      console.log("📖 Story Creation Debug:");
+      console.log("  - User ID:", user._id);
+      console.log("  - Username:", user.username);
+      console.log("  - Media Type:", mediaType);
+      console.log("  - Text Content:", textContent);
+      console.log("  - Text Style:", textStyle);
 
       // Prepare story data
       const storyData = {
@@ -257,7 +263,11 @@ router.post(
         mediaType,
         textContent: mediaType === "text" ? textContent : undefined,
         textStyle:
-          mediaType === "text" && textStyle ? JSON.parse(textStyle) : undefined,
+          mediaType === "text" && textStyle
+            ? typeof textStyle === "string"
+              ? JSON.parse(textStyle)
+              : textStyle
+            : undefined,
         caption,
         mentions: mentions.map((m) => (m.startsWith("@") ? m : `@${m}`)),
         hashtags: hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)),

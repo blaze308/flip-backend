@@ -411,7 +411,7 @@ storySchema.statics.getStoriesFeed = function (
     {
       $match: {
         userId: {
-          $in: viewableUserIds.map((id) => mongoose.Types.ObjectId(id)),
+          $in: viewableUserIds.map((id) => new mongoose.Types.ObjectId(id)),
         },
         isActive: true,
         expiresAt: { $gt: new Date() },
@@ -429,7 +429,7 @@ storySchema.statics.getStoriesFeed = function (
             $cond: [
               {
                 $not: {
-                  $in: [mongoose.Types.ObjectId(userId), "$viewers.userId"],
+                  $in: [new mongoose.Types.ObjectId(userId), "$viewers.userId"],
                 },
               },
               1,
@@ -458,7 +458,7 @@ storySchema.statics.getStoryAnalytics = function (userId, startDate, endDate) {
   return this.aggregate([
     {
       $match: {
-        userId: mongoose.Types.ObjectId(userId),
+        userId: new mongoose.Types.ObjectId(userId),
         createdAt: {
           $gte: startDate,
           $lte: endDate,
