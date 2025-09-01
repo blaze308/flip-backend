@@ -3,6 +3,13 @@ const User = require("../models/User");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
+// Validate JWT_SECRET exists
+if (!JWT_SECRET) {
+  console.error("❌ CRITICAL: JWT_SECRET environment variable is not set!");
+  console.error("Please set JWT_SECRET in your environment variables.");
+  process.exit(1);
+}
+
 /**
  * Middleware to verify JWT tokens (our custom tokens, not Firebase)
  * This middleware:

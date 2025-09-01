@@ -10,6 +10,13 @@ const router = express.Router();
 
 // JWT configuration
 const JWT_SECRET = process.env.JWT_SECRET;
+
+// Validate JWT_SECRET exists
+if (!JWT_SECRET) {
+  console.error("❌ CRITICAL: JWT_SECRET environment variable is not set!");
+  console.error("Please set JWT_SECRET in your environment variables.");
+  process.exit(1);
+}
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d"; // Default 7 days
 const JWT_REMEMBER_EXPIRES_IN = process.env.JWT_REMEMBER_EXPIRES_IN || "90d"; // 90 days for remember me
 const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || "30d"; // Default 30 days
