@@ -9,6 +9,16 @@ const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
 const { authenticateJWT } = require("../middleware/jwtAuth");
 const { body, validationResult, param, query } = require("express-validator");
 
+// Helper function to get username from user object
+const getUsernameFromUser = (user) => {
+  return (
+    user.profile?.username ||
+    user.displayName ||
+    user.email?.split("@")[0] ||
+    "user"
+  );
+};
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
@@ -250,7 +260,9 @@ router.post(
       const user = req.user;
       console.log("📖 Story Creation Debug:");
       console.log("  - User ID:", user._id);
-      console.log("  - Username:", user.username);
+      console.log("  - Username (profile):", user.profile?.username);
+      console.log("  - Display Name:", user.displayName);
+      console.log("  - Email:", user.email);
       console.log("  - Media Type:", mediaType);
       console.log("  - Text Content:", textContent);
       console.log("  - Text Style:", textStyle);
@@ -258,7 +270,7 @@ router.post(
       // Prepare story data
       const storyData = {
         userId: user._id,
-        username: user.username,
+        username: getUsernameFromUser(user),
         userAvatar: user.profileImageUrl,
         mediaType,
         textContent: mediaType === "text" ? textContent : undefined,
@@ -510,7 +522,11 @@ router.post(
       const user = req.user;
 
       // Add viewer
-      await story.addViewer(user._id, user.username, user.profileImageUrl);
+      await story.addViewer(
+        user._id,
+        getUsernameFromUser(user),
+        user.profileImageUrl
+      );
 
       res.json({
         success: true,
@@ -588,7 +604,7 @@ router.post(
       // Add reaction
       await story.addReaction(
         user._id,
-        user.username,
+        getUsernameFromUser(user),
         reactionType,
         user.profileImageUrl
       );
