@@ -11,7 +11,10 @@ const router = express.Router();
 // JWT configuration
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d"; // Default 7 days
+const JWT_REMEMBER_EXPIRES_IN = process.env.JWT_REMEMBER_EXPIRES_IN || "90d"; // 90 days for remember me
 const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || "30d"; // Default 30 days
+const REFRESH_TOKEN_REMEMBER_EXPIRES_IN =
+  process.env.REFRESH_TOKEN_REMEMBER_EXPIRES_IN || "365d"; // 1 year for remember me
 
 /**
  * POST /token/exchange
@@ -36,6 +39,10 @@ router.post(
       .optional()
       .isString()
       .withMessage("Device ID must be a string"),
+    body("rememberMe")
+      .optional()
+      .isBoolean()
+      .withMessage("Remember me must be a boolean"),
   ],
   async (req, res) => {
     try {
@@ -49,7 +56,7 @@ router.post(
       }
 
       const { firebaseUser } = req;
-      const { deviceInfo } = req.body;
+      const { deviceInfo, rememberMe = false } = req.body;
 
       // Find or create user in our database
       let user = await User.findOne({ firebaseUid: firebaseUser.uid });
@@ -112,17 +119,25 @@ router.post(
         await user.save();
       }
 
-      // Generate JWT tokens
+      // Generate JWT tokens with different expiration times based on Remember Me
       const tokenPayload = {
         userId: user._id.toString(),
         firebaseUid: user.firebaseUid,
         email: user.email,
         role: user.role,
         isActive: user.isActive,
+        rememberMe: rememberMe,
       };
 
+      const accessTokenExpiresIn = rememberMe
+        ? JWT_REMEMBER_EXPIRES_IN
+        : JWT_EXPIRES_IN;
+      const refreshTokenExpiresIn = rememberMe
+        ? REFRESH_TOKEN_REMEMBER_EXPIRES_IN
+        : REFRESH_TOKEN_EXPIRES_IN;
+
       const accessToken = jwt.sign(tokenPayload, JWT_SECRET, {
-        expiresIn: JWT_EXPIRES_IN,
+        expiresIn: accessTokenExpiresIn,
         issuer: "ancientflip-backend",
         audience: "ancientflip-app",
       });
@@ -131,10 +146,11 @@ router.post(
         {
           userId: user._id.toString(),
           tokenType: "refresh",
+          rememberMe: rememberMe,
         },
         JWT_SECRET,
         {
-          expiresIn: REFRESH_TOKEN_EXPIRES_IN,
+          expiresIn: refreshTokenExpiresIn,
           issuer: "ancientflip-backend",
           audience: "ancientflip-app",
         }
@@ -152,17 +168,21 @@ router.post(
         startTime: new Date(),
         accessToken: accessToken.substring(0, 20) + "...", // Store partial token for tracking
         refreshToken: refreshToken.substring(0, 20) + "...",
+        rememberMe: rememberMe,
       });
 
       await session.save();
 
-      // Calculate token expiration times
+      // Calculate token expiration times based on Remember Me
+      const accessTokenDays = rememberMe ? 90 : 7; // 90 days for remember me, 7 days normal
+      const refreshTokenDays = rememberMe ? 365 : 30; // 1 year for remember me, 30 days normal
+
       const accessTokenExpiresAt = new Date(
-        Date.now() + 7 * 24 * 60 * 60 * 1000
-      ); // 7 days
+        Date.now() + accessTokenDays * 24 * 60 * 60 * 1000
+      );
       const refreshTokenExpiresAt = new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000
-      ); // 30 days
+        Date.now() + refreshTokenDays * 24 * 60 * 60 * 1000
+      );
 
       res.status(isNewUser ? 201 : 200).json({
         success: true,
