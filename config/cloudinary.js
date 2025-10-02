@@ -155,7 +155,10 @@ const uploadToCloudinary = async (buffer, options = {}) => {
             console.error("📤 Cloudinary buffer upload error:", error);
             reject(new Error(`Cloudinary upload failed: ${error.message}`));
           } else {
-            console.log("📤 Cloudinary buffer upload successful:", result.secure_url);
+            console.log(
+              "📤 Cloudinary buffer upload successful:",
+              result.secure_url
+            );
             resolve(result);
           }
         }
@@ -188,13 +191,13 @@ const uploadAudio = async (file, options = {}) => {
 
     console.log("🎵 Uploading audio to Cloudinary");
     let result;
-    
+
     if (Buffer.isBuffer(file)) {
       result = await uploadToCloudinary(file, defaultOptions);
     } else {
       result = await cloudinary.uploader.upload(file, defaultOptions);
     }
-    
+
     console.log("🎵 Cloudinary audio upload successful:", result.secure_url);
 
     return {
@@ -270,40 +273,34 @@ const getFileInfo = async (publicId, resourceType = "image") => {
 const validateChatFileType = (mimeType, messageType) => {
   const validTypes = {
     image: [
-      'image/jpeg',
-      'image/jpg', 
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'image/svg+xml'
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/svg+xml",
     ],
     video: [
-      'video/mp4',
-      'video/mpeg',
-      'video/quicktime',
-      'video/x-msvideo',
-      'video/webm'
+      "video/mp4",
+      "video/mpeg",
+      "video/quicktime",
+      "video/x-msvideo",
+      "video/webm",
     ],
     audio: [
-      'audio/mpeg',
-      'audio/mp3',
-      'audio/wav',
-      'audio/ogg',
-      'audio/aac',
-      'audio/webm'
+      "audio/mpeg",
+      "audio/mp3",
+      "audio/wav",
+      "audio/ogg",
+      "audio/aac",
+      "audio/webm",
     ],
-    lottie: [
-      'application/json',
-      'text/plain'
-    ],
-    svga: [
-      'application/octet-stream',
-      'application/x-svga'
-    ],
-    file: [] // Allow all file types for general file messages
+    lottie: ["application/json", "text/plain"],
+    svga: ["application/octet-stream", "application/x-svga"],
+    file: [], // Allow all file types for general file messages
   };
 
-  if (messageType === 'file') {
+  if (messageType === "file") {
     return true; // Allow all file types for general file messages
   }
 

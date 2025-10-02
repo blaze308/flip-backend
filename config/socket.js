@@ -26,15 +26,17 @@ const initializeSocket = (server) => {
   // Socket authentication middleware
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
-      
+      const token =
+        socket.handshake.auth.token ||
+        socket.handshake.headers.authorization?.replace("Bearer ", "");
+
       if (!token) {
         return next(new Error("Authentication token required"));
       }
 
       // Verify Firebase token
       const decodedToken = await admin.auth().verifyIdToken(token);
-      
+
       // Get user from database
       const user = await User.findOne({ firebaseUid: decodedToken.uid });
       if (!user) {
@@ -68,7 +70,9 @@ const initializeSocket = (server) => {
         // Verify user is a member of this chat
         const chat = await Chat.findById(chatId);
         if (!chat || !chat.isMember(socket.userId)) {
-          socket.emit("error", { message: "You are not a member of this chat" });
+          socket.emit("error", {
+            message: "You are not a member of this chat",
+          });
           return;
         }
 
@@ -135,11 +139,11 @@ const initializeSocket = (server) => {
     socket.on("message_delivered", async (data) => {
       try {
         const { messageId, chatId } = data;
-        
+
         const message = await Message.findById(messageId);
         if (message && message.chatId.toString() === chatId) {
           await message.markAsDelivered(socket.userId, socket.username);
-          
+
           // Notify sender about delivery
           socket.to(`chat_${chatId}`).emit("message_delivery_update", {
             messageId,
@@ -156,11 +160,11 @@ const initializeSocket = (server) => {
     socket.on("message_read", async (data) => {
       try {
         const { messageId, chatId } = data;
-        
+
         const message = await Message.findById(messageId);
         if (message && message.chatId.toString() === chatId) {
           await message.markAsRead(socket.userId, socket.username);
-          
+
           // Notify sender about read receipt
           socket.to(`chat_${chatId}`).emit("message_read_update", {
             messageId,
@@ -177,7 +181,7 @@ const initializeSocket = (server) => {
     socket.on("mark_chat_read", async (data) => {
       try {
         const { chatId } = data;
-        
+
         // Get all unread messages in this chat
         const unreadMessages = await Message.find({
           chatId,
@@ -188,10 +192,10 @@ const initializeSocket = (server) => {
         });
 
         // Mark all as read
-        const updatePromises = unreadMessages.map(message => 
+        const updatePromises = unreadMessages.map((message) =>
           message.markAsRead(socket.userId, socket.username)
         );
-        
+
         await Promise.all(updatePromises);
 
         // Notify other chat members
@@ -204,7 +208,10 @@ const initializeSocket = (server) => {
           });
         }
 
-        socket.emit("chat_marked_read", { chatId, messageCount: unreadMessages.length });
+        socket.emit("chat_marked_read", {
+          chatId,
+          messageCount: unreadMessages.length,
+        });
       } catch (error) {
         console.error("Error marking chat as read:", error);
         socket.emit("error", { message: "Failed to mark chat as read" });
@@ -214,7 +221,7 @@ const initializeSocket = (server) => {
     // Handle user presence updates
     socket.on("update_presence", (data) => {
       const { status } = data; // online, away, busy, offline
-      
+
       // Broadcast presence update to all user's chats
       socket.broadcast.emit("user_presence_update", {
         userId: socket.userId,
@@ -226,16 +233,20 @@ const initializeSocket = (server) => {
 
     // Handle disconnection
     socket.on("disconnect", async (reason) => {
-      console.log(`❌ Socket disconnected: ${socket.id} (User: ${socket.username}) - Reason: ${reason}`);
+      console.log(
+        `❌ Socket disconnected: ${socket.id} (User: ${socket.username}) - Reason: ${reason}`
+      );
 
       try {
         // Update user's last seen in all their chats
         const userChats = await Chat.findActiveChatsForUser(socket.userId);
-        const updatePromises = userChats.map(chat => chat.updateLastSeen(socket.userId));
+        const updatePromises = userChats.map((chat) =>
+          chat.updateLastSeen(socket.userId)
+        );
         await Promise.all(updatePromises);
 
         // Notify all chat members that user went offline
-        userChats.forEach(chat => {
+        userChats.forEach((chat) => {
           socket.to(`chat_${chat._id}`).emit("user_offline", {
             userId: socket.userId,
             username: socket.username,
@@ -310,7 +321,7 @@ const getOnlineUsersCount = () => {
 // Get users in a specific chat room
 const getUsersInChat = (chatId) => {
   if (!io) return [];
-  
+
   const room = io.sockets.adapter.rooms.get(`chat_${chatId}`);
   return room ? Array.from(room) : [];
 };

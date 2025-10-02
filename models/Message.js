@@ -10,7 +10,7 @@ const { Schema } = mongoose;
 const MESSAGE_TYPES = [
   "text",
   "image",
-  "video", 
+  "video",
   "audio",
   "lottie",
   "svga",
@@ -487,7 +487,7 @@ messageSchema.virtual("formattedFileSize").get(function () {
   if (bytes === 0) return "0 B";
 
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + " " + sizes[i];
+  return Math.round((bytes / Math.pow(1024, i)) * 100) / 100 + " " + sizes[i];
 });
 
 // Instance Methods
@@ -514,7 +514,7 @@ messageSchema.methods.markAsRead = function (userId, username) {
       username,
       readAt: new Date(),
     });
-    
+
     // Update status if not already read
     if (this.status !== "read") {
       this.status = "read";
@@ -531,7 +531,7 @@ messageSchema.methods.markAsDelivered = function (userId, username) {
       username,
       deliveredAt: new Date(),
     });
-    
+
     // Update status if still sent
     if (this.status === "sent") {
       this.status = "delivered";
@@ -659,7 +659,11 @@ messageSchema.statics.findInChat = function (chatId, options = {}) {
 };
 
 // Search messages in chat
-messageSchema.statics.searchInChat = function (chatId, searchQuery, userId = null) {
+messageSchema.statics.searchInChat = function (
+  chatId,
+  searchQuery,
+  userId = null
+) {
   let query = {
     chatId,
     isDeleted: false,
@@ -688,7 +692,11 @@ messageSchema.statics.getUnreadCount = function (chatId, userId) {
 };
 
 // Get media messages in chat
-messageSchema.statics.getMediaMessages = function (chatId, mediaTypes = ["image", "video"], userId = null) {
+messageSchema.statics.getMediaMessages = function (
+  chatId,
+  mediaTypes = ["image", "video"],
+  userId = null
+) {
   let query = {
     chatId,
     type: { $in: mediaTypes },
@@ -709,12 +717,12 @@ messageSchema.statics.getMediaMessages = function (chatId, mediaTypes = ["image"
 messageSchema.statics.cleanupExpiredMessages = function () {
   return this.updateMany(
     { expiresAt: { $lt: new Date() } },
-    { 
-      $set: { 
-        isDeleted: true, 
+    {
+      $set: {
+        isDeleted: true,
         deletedAt: new Date(),
-        content: "This message has expired"
-      } 
+        content: "This message has expired",
+      },
     }
   );
 };
@@ -722,11 +730,17 @@ messageSchema.statics.cleanupExpiredMessages = function () {
 // Pre-save middleware
 messageSchema.pre("save", function (next) {
   // Validate message type specific requirements
-  if (this.type === "text" && (!this.content || this.content.trim().length === 0)) {
+  if (
+    this.type === "text" &&
+    (!this.content || this.content.trim().length === 0)
+  ) {
     return next(new Error("Text messages must have content"));
   }
 
-  if (["image", "video", "audio", "lottie", "svga", "file"].includes(this.type) && !this.media) {
+  if (
+    ["image", "video", "audio", "lottie", "svga", "file"].includes(this.type) &&
+    !this.media
+  ) {
     return next(new Error(`${this.type} messages must have media data`));
   }
 

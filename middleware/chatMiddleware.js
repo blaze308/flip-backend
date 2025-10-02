@@ -99,7 +99,7 @@ const validateMessageContent = (req, res, next) => {
             error: "MISSING_FILE",
           });
         }
-        
+
         // Validate file type
         if (!validateChatFileType(req.file.mimetype, type)) {
           return res.status(400).json({
@@ -144,7 +144,7 @@ const validateMessageContent = (req, res, next) => {
             error: "INVALID_LOCATION_DATA",
           });
         }
-        
+
         // Validate coordinate ranges
         if (
           location.latitude < -90 ||
@@ -168,7 +168,7 @@ const validateMessageContent = (req, res, next) => {
             error: "INVALID_CONTACT_DATA",
           });
         }
-        
+
         // Validate contact data
         if (contact.name.length > 100) {
           return res.status(400).json({
@@ -331,7 +331,7 @@ const sanitizeMessageContent = (req, res, next) => {
 const logChatActivity = (action) => {
   return (req, res, next) => {
     const startTime = Date.now();
-    
+
     // Log the activity
     console.log(`💬 Chat Activity: ${action}`, {
       userId: req.user?._id,

@@ -267,18 +267,18 @@ Ready to serve your Flutter app! 🎉
 
     // Store server reference for graceful shutdown
     global.server = server;
-    
+
     // Set up periodic cleanup tasks
     setInterval(async () => {
       try {
         // Clean up expired messages
         const Message = require("./models/Message");
         await Message.cleanupExpiredMessages();
-        
+
         // Clean up expired stories
         const Story = require("./models/Story");
         await Story.cleanupExpiredStories();
-        
+
         console.log("🧹 Periodic cleanup completed");
       } catch (error) {
         console.error("🧹 Cleanup error:", error);

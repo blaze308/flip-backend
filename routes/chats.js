@@ -5,7 +5,11 @@ const Chat = require("../models/Chat");
 const Message = require("../models/Message");
 const User = require("../models/User");
 const { authenticateJWT, requireSyncedUser } = require("../middleware/jwtAuth");
-const { uploadToCloudinary, uploadRawFile, uploadAudio } = require("../config/cloudinary");
+const {
+  uploadToCloudinary,
+  uploadRawFile,
+  uploadAudio,
+} = require("../config/cloudinary");
 const {
   messageSendLimiter,
   chatCreationLimiter,
@@ -15,7 +19,11 @@ const {
   sanitizeMessageContent,
   logChatActivity,
 } = require("../middleware/chatMiddleware");
-const { emitNewMessage, emitMessageUpdate, emitChatUpdate } = require("../config/socket");
+const {
+  emitNewMessage,
+  emitMessageUpdate,
+  emitChatUpdate,
+} = require("../config/socket");
 
 const router = express.Router();
 
@@ -127,11 +135,7 @@ router.get(
   "/:chatId",
   authenticateJWT,
   requireSyncedUser,
-  [
-    param("chatId")
-      .isMongoId()
-      .withMessage("Invalid chat ID"),
-  ],
+  [param("chatId").isMongoId().withMessage("Invalid chat ID")],
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -242,7 +246,10 @@ router.post(
 
       // For direct chats, check if chat already exists
       if (type === "direct") {
-        const existingChat = await Chat.findDirectChat(user._id, participants[0]);
+        const existingChat = await Chat.findDirectChat(
+          user._id,
+          participants[0]
+        );
         if (existingChat) {
           return res.json({
             success: true,
@@ -291,7 +298,8 @@ router.post(
         description,
         members,
         createdBy: user._id,
-        participants: type === "direct" ? [user._id, participants[0]] : undefined,
+        participants:
+          type === "direct" ? [user._id, participants[0]] : undefined,
       };
 
       const chat = new Chat(chatData);
@@ -326,9 +334,7 @@ router.get(
   authenticateJWT,
   requireSyncedUser,
   [
-    param("chatId")
-      .isMongoId()
-      .withMessage("Invalid chat ID"),
+    param("chatId").isMongoId().withMessage("Invalid chat ID"),
     query("page")
       .optional()
       .isInt({ min: 1 })
@@ -347,7 +353,17 @@ router.get(
       .withMessage("After must be a valid ISO date"),
     query("type")
       .optional()
-      .isIn(["text", "image", "video", "audio", "lottie", "svga", "file", "location", "contact"])
+      .isIn([
+        "text",
+        "image",
+        "video",
+        "audio",
+        "lottie",
+        "svga",
+        "file",
+        "location",
+        "contact",
+      ])
       .withMessage("Invalid message type"),
   ],
   async (req, res) => {
@@ -435,9 +451,7 @@ router.post(
   sanitizeMessageContent,
   validateMessageContent,
   [
-    param("chatId")
-      .isMongoId()
-      .withMessage("Invalid chat ID"),
+    param("chatId").isMongoId().withMessage("Invalid chat ID"),
     body("replyToMessageId")
       .optional()
       .isMongoId()
@@ -494,10 +508,13 @@ router.post(
       };
 
       // Handle media upload
-      if (req.file && ["image", "video", "audio", "lottie", "svga", "file"].includes(type)) {
+      if (
+        req.file &&
+        ["image", "video", "audio", "lottie", "svga", "file"].includes(type)
+      ) {
         try {
           let uploadResult;
-          
+
           // Handle different file types with appropriate upload methods
           if (type === "audio") {
             uploadResult = await uploadAudio(req.file.buffer, {
@@ -514,7 +531,7 @@ router.post(
             let resourceType = "auto";
             if (type === "video") resourceType = "video";
             if (type === "file") resourceType = "raw";
-            
+
             uploadResult = await uploadToCloudinary(req.file.buffer, {
               resource_type: resourceType,
               folder: `chat_media/${type}s`,
@@ -524,7 +541,8 @@ router.post(
 
           messageData.media = {
             url: uploadResult.secure_url,
-            thumbnailUrl: uploadResult.eager?.[0]?.secure_url || uploadResult.secure_url,
+            thumbnailUrl:
+              uploadResult.eager?.[0]?.secure_url || uploadResult.secure_url,
             fileName: req.file.originalname,
             fileSize: req.file.size,
             mimeType: req.file.mimetype,
@@ -538,15 +556,17 @@ router.post(
           // Handle special file types
           if (type === "lottie") {
             try {
-              messageData.media.lottieData = JSON.parse(req.file.buffer.toString());
+              messageData.media.lottieData = JSON.parse(
+                req.file.buffer.toString()
+              );
             } catch (parseError) {
               console.error("Failed to parse Lottie JSON:", parseError);
               messageData.media.lottieData = null;
             }
           } else if (type === "svga") {
-            messageData.media.svgaData = { 
+            messageData.media.svgaData = {
               size: req.file.size,
-              originalName: req.file.originalname 
+              originalName: req.file.originalname,
             };
           }
         } catch (uploadError) {
@@ -581,15 +601,20 @@ router.post(
 
       // Handle reply messages
       if (replyToMessageId) {
-        const replyToMessage = await Message.findById(replyToMessageId)
-          .populate("senderId", "displayName username");
-        
+        const replyToMessage = await Message.findById(
+          replyToMessageId
+        ).populate("senderId", "displayName username");
+
         if (replyToMessage && replyToMessage.chatId.toString() === chatId) {
           messageData.replyTo = {
             messageId: replyToMessage._id,
             senderId: replyToMessage.senderId._id,
-            senderName: replyToMessage.senderId.displayName || replyToMessage.senderId.username,
-            content: replyToMessage.content ? replyToMessage.content.substring(0, 200) : "",
+            senderName:
+              replyToMessage.senderId.displayName ||
+              replyToMessage.senderId.username,
+            content: replyToMessage.content
+              ? replyToMessage.content.substring(0, 200)
+              : "",
             type: replyToMessage.type,
             timestamp: replyToMessage.createdAt,
           };
@@ -686,9 +711,9 @@ router.put(
       await message.markAsRead(user._id, user.username);
 
       // Emit socket event for read receipt
-      emitMessageUpdate(messageId, chatId, "read", { 
-        userId: user._id, 
-        username: user.username 
+      emitMessageUpdate(messageId, chatId, "read", {
+        userId: user._id,
+        username: user.username,
       });
 
       res.json({
@@ -762,11 +787,11 @@ router.post(
       await message.addReaction(user._id, user.username, emoji);
 
       // Emit socket event for reaction
-      emitMessageUpdate(messageId, chatId, "reaction_added", { 
-        userId: user._id, 
+      emitMessageUpdate(messageId, chatId, "reaction_added", {
+        userId: user._id,
         username: user.username,
         emoji,
-        reactions: message.getGroupedReactions()
+        reactions: message.getGroupedReactions(),
       });
 
       res.json({
@@ -839,10 +864,10 @@ router.delete(
       await message.removeReaction(user._id);
 
       // Emit socket event for reaction removal
-      emitMessageUpdate(messageId, chatId, "reaction_removed", { 
-        userId: user._id, 
+      emitMessageUpdate(messageId, chatId, "reaction_removed", {
+        userId: user._id,
         username: user.username,
-        reactions: message.getGroupedReactions()
+        reactions: message.getGroupedReactions(),
       });
 
       res.json({
