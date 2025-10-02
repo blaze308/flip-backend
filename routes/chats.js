@@ -262,7 +262,7 @@ router.post(
       // Get participant user data
       const participantUsers = await User.find({
         _id: { $in: participants },
-      }).select("displayName photoURL username firebaseUid");
+      }).select("displayName photoURL profile.username firebaseUid");
 
       if (participantUsers.length !== participants.length) {
         return res.status(400).json({
@@ -276,16 +276,16 @@ router.post(
         {
           userId: user._id,
           firebaseUid: user.firebaseUid,
-          username: user.username,
-          displayName: user.displayName || user.username,
+          username: user.profile?.username,
+          displayName: user.displayName,
           avatar: user.photoURL,
           role: type === "group" ? "admin" : "member",
         },
         ...participantUsers.map((participant) => ({
           userId: participant._id,
           firebaseUid: participant.firebaseUid,
-          username: participant.username,
-          displayName: participant.displayName || participant.username,
+          username: participant.profile?.username,
+          displayName: participant.displayName,
           avatar: participant.photoURL,
           role: "member",
         })),
