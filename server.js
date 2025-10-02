@@ -36,6 +36,7 @@ const postRoutes = require("./routes/posts");
 const commentRoutes = require("./routes/comments");
 const uploadRoutes = require("./routes/upload");
 const storyRoutes = require("./routes/stories");
+const chatRoutes = require("./routes/chats");
 
 // Initialize Express app
 const app = express();
@@ -138,6 +139,7 @@ app.get("/", (req, res) => {
       posts: "/posts",
       comments: "/comments",
       stories: "/stories",
+      chats: "/chats",
     },
   });
 });
@@ -152,6 +154,7 @@ app.use("/api/posts", postRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/stories", storyRoutes);
+app.use("/api/chats", chatRoutes);
 
 // Serve uploaded files statically
 app.use("/uploads", express.static("uploads"));
@@ -234,6 +237,7 @@ const startServer = async () => {
    • User Management: http://${HOST}:${PORT}/users
    • Posts: http://${HOST}:${PORT}/posts
    • Stories: http://${HOST}:${PORT}/stories
+   • Chats: http://${HOST}:${PORT}/chats
 
 🔒 Security Features:
    • Rate limiting enabled
@@ -247,12 +251,39 @@ const startServer = async () => {
    • Models initialized
    • Audit logging enabled
 
+💬 Real-time Features:
+   • Socket.IO enabled for chat
+   • Real-time messaging ready
+   • Typing indicators supported
+   • Read receipts enabled
+
 Ready to serve your Flutter app! 🎉
       `);
     });
 
+    // Initialize Socket.IO
+    const { initializeSocket } = require("./config/socket");
+    initializeSocket(server);
+
     // Store server reference for graceful shutdown
     global.server = server;
+    
+    // Set up periodic cleanup tasks
+    setInterval(async () => {
+      try {
+        // Clean up expired messages
+        const Message = require("./models/Message");
+        await Message.cleanupExpiredMessages();
+        
+        // Clean up expired stories
+        const Story = require("./models/Story");
+        await Story.cleanupExpiredStories();
+        
+        console.log("🧹 Periodic cleanup completed");
+      } catch (error) {
+        console.error("🧹 Cleanup error:", error);
+      }
+    }, 60 * 60 * 1000); // Run every hour
 
     return server;
   } catch (error) {

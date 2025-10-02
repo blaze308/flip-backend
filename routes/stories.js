@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs").promises;
+const jwt = require("jsonwebtoken");
 const Story = require("../models/Story");
 const User = require("../models/User");
 const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
@@ -205,6 +206,96 @@ router.get(
 );
 
 /**
+ * @route   GET /api/stories/:storyId
+ * @desc    Get a single story by ID
+ * @access  Public (for public stories) / Private (for private stories)
+ */
+router.get("/:storyId", async (req, res) => {
+  try {
+    const { storyId } = req.params;
+    console.log(`📖 Fetching story: ${storyId}`);
+
+    // Find the story
+    const story = await Story.findById(storyId);
+    if (!story) {
+      return res.status(404).json({
+        success: false,
+        message: "Story not found",
+      });
+    }
+
+    // Check if story is expired
+    if (!story.isActive || story.expiresAt <= new Date()) {
+      return res.status(404).json({
+        success: false,
+        message: "Story not found or has expired",
+      });
+    }
+
+    // For public stories, allow guest access
+    if (story.privacy === "public") {
+      return res.json({
+        success: true,
+        message: "Story retrieved successfully",
+        data: story,
+      });
+    }
+
+    // For private stories, require authentication
+    // Try to get user from JWT token (optional for this route)
+    let userId = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.userId);
+        if (user) {
+          userId = user._id;
+        }
+      } catch (error) {
+        // Invalid token, treat as guest
+        console.log("📖 Invalid token for story access, treating as guest");
+      }
+    }
+
+    // If no valid user and story is not public, deny access
+    if (!userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Authentication required to view this story",
+      });
+    }
+
+    // Check if user can view this private story
+    // For now, allow if user is the owner or if it's friends/close friends
+    // TODO: Implement proper privacy checks based on relationships
+    if (story.userId.toString() === userId.toString()) {
+      // User can view their own story
+      return res.json({
+        success: true,
+        message: "Story retrieved successfully",
+        data: story,
+      });
+    }
+
+    // For friends/close friends stories, we'd need to check relationships
+    // For now, deny access to other users' private stories
+    return res.status(403).json({
+      success: false,
+      message: "You don't have permission to view this story",
+    });
+  } catch (error) {
+    console.error("Error fetching story:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch story",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+});
+
+/**
  * @route   POST /api/stories
  * @desc    Create a new story
  * @access  Private
@@ -221,6 +312,19 @@ router.post(
       console.log("  - Content-Type:", req.headers["content-type"]);
       console.log("  - Body:", req.body);
       console.log("  - File:", req.file);
+      console.log("  - Media Type from body:", req.body.mediaType);
+      console.log("  - Has file:", !!req.file);
+      console.log(
+        "  - File details:",
+        req.file
+          ? {
+              fieldname: req.file.fieldname,
+              originalname: req.file.originalname,
+              mimetype: req.file.mimetype,
+              size: req.file.size,
+            }
+          : "No file"
+      );
 
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -771,7 +875,15 @@ router.delete(
       }
 
       // Check if user owns this story
-      if (story.userId.toString() !== req.user._id) {
+      console.log("📖 Delete Story Debug:");
+      console.log("  - Story userId:", story.userId.toString());
+      console.log("  - Request user _id:", req.user._id.toString());
+      console.log(
+        "  - Match:",
+        story.userId.toString() === req.user._id.toString()
+      );
+
+      if (story.userId.toString() !== req.user._id.toString()) {
         return res.status(403).json({
           success: false,
           message: "You can only delete your own stories",

@@ -130,9 +130,123 @@ const deleteFile = async (publicId, resourceType = "image") => {
 };
 
 /**
+ * Upload file buffer to Cloudinary (for chat media)
+ * @param {Buffer} buffer - File buffer
+ * @param {Object} options - Upload options
+ * @returns {Promise<Object>} Upload result
+ */
+const uploadToCloudinary = async (buffer, options = {}) => {
+  try {
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: options.resource_type || "auto",
+          folder: options.folder || "ancientflip/chat",
+          public_id: options.public_id,
+          use_filename: options.use_filename || false,
+          unique_filename: options.unique_filename !== false,
+          overwrite: options.overwrite || false,
+          quality: options.quality || "auto",
+          fetch_format: options.fetch_format || "auto",
+          ...options,
+        },
+        (error, result) => {
+          if (error) {
+            console.error("📤 Cloudinary buffer upload error:", error);
+            reject(new Error(`Cloudinary upload failed: ${error.message}`));
+          } else {
+            console.log("📤 Cloudinary buffer upload successful:", result.secure_url);
+            resolve(result);
+          }
+        }
+      );
+
+      uploadStream.end(buffer);
+    });
+  } catch (error) {
+    console.error("📤 Cloudinary buffer upload error:", error);
+    throw new Error(`Cloudinary upload failed: ${error.message}`);
+  }
+};
+
+/**
+ * Upload audio file to Cloudinary
+ * @param {string|Buffer} file - File path or buffer
+ * @param {Object} options - Upload options
+ * @returns {Promise<Object>} Upload result
+ */
+const uploadAudio = async (file, options = {}) => {
+  try {
+    const defaultOptions = {
+      resource_type: "video", // Cloudinary treats audio as video
+      folder: "ancientflip/audio",
+      use_filename: true,
+      unique_filename: true,
+      overwrite: false,
+      ...options,
+    };
+
+    console.log("🎵 Uploading audio to Cloudinary");
+    let result;
+    
+    if (Buffer.isBuffer(file)) {
+      result = await uploadToCloudinary(file, defaultOptions);
+    } else {
+      result = await cloudinary.uploader.upload(file, defaultOptions);
+    }
+    
+    console.log("🎵 Cloudinary audio upload successful:", result.secure_url);
+
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+      format: result.format,
+      bytes: result.bytes,
+      duration: result.duration,
+    };
+  } catch (error) {
+    console.error("🎵 Cloudinary audio upload error:", error);
+    throw new Error(`Cloudinary audio upload failed: ${error.message}`);
+  }
+};
+
+/**
+ * Upload raw file (for lottie, svga, etc.)
+ * @param {Buffer} buffer - File buffer
+ * @param {Object} options - Upload options
+ * @returns {Promise<Object>} Upload result
+ */
+const uploadRawFile = async (buffer, options = {}) => {
+  try {
+    const defaultOptions = {
+      resource_type: "raw",
+      folder: "ancientflip/files",
+      use_filename: true,
+      unique_filename: true,
+      overwrite: false,
+      ...options,
+    };
+
+    console.log("📄 Uploading raw file to Cloudinary");
+    const result = await uploadToCloudinary(buffer, defaultOptions);
+    console.log("📄 Cloudinary raw file upload successful:", result.secure_url);
+
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+      format: result.format,
+      bytes: result.bytes,
+    };
+  } catch (error) {
+    console.error("📄 Cloudinary raw file upload error:", error);
+    throw new Error(`Cloudinary raw file upload failed: ${error.message}`);
+  }
+};
+
+/**
  * Get file info from Cloudinary
  * @param {string} publicId - Public ID of the file
- * @param {string} resourceType - Type of resource ('image' or 'video')
+ * @param {string} resourceType - Type of resource ('image', 'video', 'raw')
  * @returns {Promise<Object>} File info
  */
 const getFileInfo = async (publicId, resourceType = "image") => {
@@ -147,11 +261,64 @@ const getFileInfo = async (publicId, resourceType = "image") => {
   }
 };
 
+/**
+ * Validate file type for chat uploads
+ * @param {string} mimeType - File MIME type
+ * @param {string} messageType - Message type (image, video, audio, lottie, svga, file)
+ * @returns {boolean} Whether file type is valid
+ */
+const validateChatFileType = (mimeType, messageType) => {
+  const validTypes = {
+    image: [
+      'image/jpeg',
+      'image/jpg', 
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/svg+xml'
+    ],
+    video: [
+      'video/mp4',
+      'video/mpeg',
+      'video/quicktime',
+      'video/x-msvideo',
+      'video/webm'
+    ],
+    audio: [
+      'audio/mpeg',
+      'audio/mp3',
+      'audio/wav',
+      'audio/ogg',
+      'audio/aac',
+      'audio/webm'
+    ],
+    lottie: [
+      'application/json',
+      'text/plain'
+    ],
+    svga: [
+      'application/octet-stream',
+      'application/x-svga'
+    ],
+    file: [] // Allow all file types for general file messages
+  };
+
+  if (messageType === 'file') {
+    return true; // Allow all file types for general file messages
+  }
+
+  return validTypes[messageType]?.includes(mimeType.toLowerCase()) || false;
+};
+
 module.exports = {
   cloudinary,
   uploadImage,
   uploadVideo,
+  uploadAudio,
+  uploadRawFile,
+  uploadToCloudinary,
   generateVideoThumbnail,
   deleteFile,
   getFileInfo,
+  validateChatFileType,
 };
