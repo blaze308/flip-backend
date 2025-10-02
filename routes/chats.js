@@ -4,7 +4,8 @@ const multer = require("multer");
 const Chat = require("../models/Chat");
 const Message = require("../models/Message");
 const User = require("../models/User");
-const { authenticateJWT, requireSyncedUser } = require("../middleware/jwtAuth");
+const { authenticateJWT } = require("../middleware/jwtAuth");
+const { requireSyncedUser } = require("../middleware/auth");
 const {
   uploadToCloudinary,
   uploadRawFile,
