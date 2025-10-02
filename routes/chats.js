@@ -202,7 +202,6 @@ router.get(
 router.post(
   "/",
   authenticateJWT,
-  requireSyncedUser,
   chatCreationLimiter,
   logChatActivity("CREATE_CHAT"),
   validateChatCreation,
@@ -226,7 +225,7 @@ router.post(
         });
       }
 
-      const { user, firebaseUser } = req;
+      const { user } = req;
       const { type, name, description, participants } = req.body;
 
       // For direct chats, ensure exactly 2 participants
@@ -276,7 +275,7 @@ router.post(
       const members = [
         {
           userId: user._id,
-          firebaseUid: firebaseUser.uid,
+          firebaseUid: user.firebaseUid,
           username: user.username,
           displayName: user.displayName || user.username,
           avatar: user.photoURL,
@@ -469,7 +468,7 @@ router.post(
         });
       }
 
-      const { user, firebaseUser } = req;
+      const { user } = req;
       const { chatId } = req.params;
       const { type, content, replyToMessageId, location, contact } = req.body;
 
@@ -501,7 +500,7 @@ router.post(
       const messageData = {
         chatId,
         senderId: user._id,
-        senderFirebaseUid: firebaseUser.uid,
+        senderFirebaseUid: user.firebaseUid,
         senderName: user.displayName || user.username,
         senderAvatar: user.photoURL,
         type,
