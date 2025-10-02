@@ -550,14 +550,17 @@ router.post(
           }
 
           messageData.media = {
-            url: uploadResult.secure_url,
-            thumbnailUrl: type === "video" 
-              ? generateVideoThumbnail(uploadResult.public_id, {
-                  width: 800,
-                  height: 600,
-                  crop: "fill",
-                })
-              : uploadResult.eager?.[0]?.secure_url || uploadResult.secure_url,
+            url: uploadResult.secure_url || uploadResult.url,
+            thumbnailUrl:
+              type === "video"
+                ? generateVideoThumbnail(uploadResult.public_id, {
+                    width: 800,
+                    height: 600,
+                    crop: "fill",
+                  })
+                : uploadResult.eager?.[0]?.secure_url ||
+                  uploadResult.secure_url ||
+                  uploadResult.url,
             fileName: req.file.originalname,
             fileSize: req.file.size,
             mimeType: req.file.mimetype,
