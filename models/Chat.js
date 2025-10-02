@@ -12,29 +12,13 @@ const CHAT_TYPES = ["direct", "group"];
 // Chat Status Enum
 const CHAT_STATUS = ["active", "archived", "deleted"];
 
-// Chat Member Schema
+// Chat Member Schema - Simplified to use userId as primary identifier
 const chatMemberSchema = new Schema(
   {
     userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
-    },
-    firebaseUid: {
-      type: String,
-      required: true,
-    },
-    username: {
-      type: String,
-      required: true,
-    },
-    displayName: {
-      type: String,
-      required: true,
-    },
-    avatar: {
-      type: String,
-      default: null,
     },
     role: {
       type: String,

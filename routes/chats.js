@@ -83,14 +83,26 @@ router.get(
         chats = await Chat.searchChats(user._id, search)
           .limit(parseInt(limit))
           .skip(skip)
-          .populate("members.userId", "displayName photoURL username")
-          .populate("lastMessage.senderId", "displayName username");
+          .populate(
+            "members.userId",
+            "displayName photoURL profile.username email"
+          )
+          .populate(
+            "lastMessage.senderId",
+            "displayName profile.username email"
+          );
       } else {
         chats = await Chat.findActiveChatsForUser(user._id)
           .limit(parseInt(limit))
           .skip(skip)
-          .populate("members.userId", "displayName photoURL username")
-          .populate("lastMessage.senderId", "displayName username");
+          .populate(
+            "members.userId",
+            "displayName photoURL profile.username email"
+          )
+          .populate(
+            "lastMessage.senderId",
+            "displayName profile.username email"
+          );
       }
 
       // Get unread message counts for each chat
@@ -152,8 +164,11 @@ router.get(
       const { chatId } = req.params;
 
       const chat = await Chat.findById(chatId)
-        .populate("members.userId", "displayName photoURL username")
-        .populate("lastMessage.senderId", "displayName username");
+        .populate(
+          "members.userId",
+          "displayName photoURL profile.username email"
+        )
+        .populate("lastMessage.senderId", "displayName profile.username email");
 
       if (!chat) {
         return res.status(404).json({
@@ -259,10 +274,10 @@ router.post(
         }
       }
 
-      // Get participant user data
+      // Get participant user data - just verify they exist
       const participantUsers = await User.find({
         _id: { $in: participants },
-      }).select("displayName photoURL profile.username firebaseUid");
+      }).select("_id");
 
       if (participantUsers.length !== participants.length) {
         return res.status(400).json({
@@ -271,22 +286,14 @@ router.post(
         });
       }
 
-      // Create chat members array
+      // Create chat members array - simplified to just userId and role
       const members = [
         {
           userId: user._id,
-          firebaseUid: user.firebaseUid,
-          username: user.profile?.username,
-          displayName: user.displayName,
-          avatar: user.photoURL,
           role: type === "group" ? "admin" : "member",
         },
         ...participantUsers.map((participant) => ({
           userId: participant._id,
-          firebaseUid: participant.firebaseUid,
-          username: participant.profile?.username,
-          displayName: participant.displayName,
-          avatar: participant.photoURL,
           role: "member",
         })),
       ];
@@ -305,8 +312,11 @@ router.post(
       const chat = new Chat(chatData);
       await chat.save();
 
-      // Populate the created chat
-      await chat.populate("members.userId", "displayName photoURL username");
+      // Populate the created chat with full user data
+      await chat.populate(
+        "members.userId",
+        "displayName photoURL profile.username email"
+      );
 
       res.status(201).json({
         success: true,
