@@ -326,6 +326,21 @@ const getUsersInChat = (chatId) => {
   return room ? Array.from(room) : [];
 };
 
+// Call-related socket events
+const emitCallInvitation = (userId, callData) => {
+  if (io) {
+    io.to(`user_${userId}`).emit("call_invitation", callData);
+    console.log(`📞 Call invitation emitted to user_${userId}:`, callData.callId);
+  }
+};
+
+const emitCallEnd = (userId, callData) => {
+  if (io) {
+    io.to(`user_${userId}`).emit("call_ended", callData);
+    console.log(`📞 Call end emitted to user_${userId}:`, callData.callId);
+  }
+};
+
 module.exports = {
   initializeSocket,
   emitToChat,
@@ -333,6 +348,8 @@ module.exports = {
   emitNewMessage,
   emitMessageUpdate,
   emitChatUpdate,
+  emitCallInvitation,
+  emitCallEnd,
   getOnlineUsersCount,
   getUsersInChat,
 };

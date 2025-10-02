@@ -37,6 +37,7 @@ const commentRoutes = require("./routes/comments");
 const uploadRoutes = require("./routes/upload");
 const storyRoutes = require("./routes/stories");
 const chatRoutes = require("./routes/chats");
+const callRoutes = require("./routes/calls");
 
 // Initialize Express app
 const app = express();
@@ -155,6 +156,7 @@ app.use("/api/comments", commentRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/stories", storyRoutes);
 app.use("/api/chats", chatRoutes);
+app.use("/api/calls", callRoutes);
 
 // Serve uploaded files statically
 app.use("/uploads", express.static("uploads"));
