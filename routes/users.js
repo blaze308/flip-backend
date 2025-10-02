@@ -768,4 +768,59 @@ router.put(
   }
 );
 
+/**
+ * GET /users/following
+ *
+ * Get list of users that the current user is following
+ */
+router.get(
+  "/following",
+  authenticateToken,
+  requireSyncedUser,
+  async (req, res) => {
+    try {
+      const { user } = req;
+
+      // Get the list of users that the current user is following
+      const followingUsers = await User.find({
+        _id: { $in: user.following },
+        isActive: true,
+        deletedAt: null,
+      })
+        .select("_id displayName photoURL username profile.firstName profile.lastName")
+        .lean();
+
+      // Format the response
+      const formattedUsers = followingUsers.map((followingUser) => ({
+        id: followingUser._id,
+        displayName: followingUser.displayName,
+        username: followingUser.username || 
+          `${followingUser.profile?.firstName || ""} ${followingUser.profile?.lastName || ""}`.trim() ||
+          followingUser.displayName,
+        photoURL: followingUser.photoURL,
+        avatar: followingUser.photoURL,
+      }));
+
+      res.json({
+        success: true,
+        message: "Following users retrieved successfully",
+        data: {
+          users: formattedUsers,
+          count: formattedUsers.length,
+        },
+      });
+    } catch (error) {
+      console.error("Get following users error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to get following users",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
+      });
+    }
+  }
+);
+
 module.exports = router;
