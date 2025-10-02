@@ -330,7 +330,10 @@ const getUsersInChat = (chatId) => {
 const emitCallInvitation = (userId, callData) => {
   if (io) {
     io.to(`user_${userId}`).emit("call_invitation", callData);
-    console.log(`📞 Call invitation emitted to user_${userId}:`, callData.callId);
+    console.log(
+      `📞 Call invitation emitted to user_${userId}:`,
+      callData.callId
+    );
   }
 };
 

@@ -54,8 +54,12 @@ router.post(
       }
 
       // Generate unique room ID
-      const roomId = `flip-call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const callId = `call-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const roomId = `flip-call-${Date.now()}-${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
+      const callId = `call-${Date.now()}-${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
 
       // Create call data
       const callData = {
@@ -63,11 +67,11 @@ router.post(
         roomId,
         chatId,
         callerId: user._id.toString(),
-        callerName: user.displayName || user.profile?.username || 'User',
+        callerName: user.displayName || user.profile?.username || "User",
         type,
         participants,
         createdAt: new Date(),
-        status: 'ringing',
+        status: "ringing",
       };
 
       // Store call in memory
@@ -82,14 +86,14 @@ router.post(
       const callInvitation = {
         ...callData,
         callerAvatar: user.photoURL,
-        participantUsers: participantUsers.map(p => ({
+        participantUsers: participantUsers.map((p) => ({
           id: p._id.toString(),
-          name: p.displayName || p.profile?.username || 'User',
+          name: p.displayName || p.profile?.username || "User",
         })),
       };
 
       // Emit to all participants
-      participants.forEach(participantId => {
+      participants.forEach((participantId) => {
         emitCallInvitation(participantId, callInvitation);
       });
 
@@ -149,9 +153,10 @@ router.post(
       }
 
       // Check if user is invited
-      const isParticipant = callData.participants.includes(user._id.toString()) || 
-                           callData.callerId === user._id.toString();
-      
+      const isParticipant =
+        callData.participants.includes(user._id.toString()) ||
+        callData.callerId === user._id.toString();
+
       if (!isParticipant) {
         return res.status(403).json({
           success: false,
@@ -160,7 +165,7 @@ router.post(
       }
 
       // Update call status
-      callData.status = 'active';
+      callData.status = "active";
       if (!callData.joinedParticipants) {
         callData.joinedParticipants = [];
       }
@@ -222,9 +227,10 @@ router.post(
       }
 
       // Check if user can end the call (caller or participant)
-      const canEndCall = callData.callerId === user._id.toString() || 
-                        callData.participants.includes(user._id.toString());
-      
+      const canEndCall =
+        callData.callerId === user._id.toString() ||
+        callData.participants.includes(user._id.toString());
+
       if (!canEndCall) {
         return res.status(403).json({
           success: false,
@@ -233,16 +239,16 @@ router.post(
       }
 
       // Update call status
-      callData.status = 'ended';
+      callData.status = "ended";
       callData.endedAt = new Date();
       callData.endedBy = user._id.toString();
 
       // Emit call end to all participants
       const allParticipants = [callData.callerId, ...callData.participants];
-      allParticipants.forEach(participantId => {
+      allParticipants.forEach((participantId) => {
         emitCallEnd(participantId, {
           callId,
-          endedBy: user.displayName || user.profile?.username || 'User',
+          endedBy: user.displayName || user.profile?.username || "User",
           endedAt: callData.endedAt,
         });
       });
@@ -351,7 +357,7 @@ router.get("/active", authenticateJWT, async (req, res) => {
         callData.callerId === user._id.toString() ||
         callData.participants.includes(user._id.toString())
       ) {
-        if (callData.status === 'ringing' || callData.status === 'active') {
+        if (callData.status === "ringing" || callData.status === "active") {
           userCalls.push({
             callId,
             roomId: callData.roomId,
@@ -391,13 +397,13 @@ setInterval(() => {
     // Remove calls older than 1 hour or ended calls older than 5 minutes
     if (
       callAge > 60 * 60 * 1000 || // 1 hour
-      (callData.status === 'ended' && callAge > 5 * 60 * 1000) // 5 minutes
+      (callData.status === "ended" && callAge > 5 * 60 * 1000) // 5 minutes
     ) {
       expiredCalls.push(callId);
     }
   }
 
-  expiredCalls.forEach(callId => {
+  expiredCalls.forEach((callId) => {
     activeCalls.delete(callId);
     console.log(`📞 Cleaned up expired call: ${callId}`);
   });
