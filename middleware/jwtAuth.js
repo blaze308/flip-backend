@@ -1,6 +1,25 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
+/**
+ * ⚠️  IMPORTANT: JWT AUTHENTICATION SYSTEM
+ *
+ * This is the MAIN authentication system for this application.
+ * ALL new routes and endpoints should use `authenticateJWT` middleware.
+ *
+ * DO NOT use `authenticateToken` from middleware/auth.js (Firebase tokens)
+ * unless specifically required for Firebase-only operations.
+ *
+ * Standard pattern for protected routes:
+ * router.get('/endpoint', authenticateJWT, async (req, res) => { ... });
+ *
+ * The JWT system provides:
+ * - Custom JWT tokens issued by our backend
+ * - Token refresh capabilities
+ * - Consistent user object in req.user
+ * - Better security and control
+ */
+
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // Validate JWT_SECRET exists

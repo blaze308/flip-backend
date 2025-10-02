@@ -4,6 +4,7 @@ const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const Session = require("../models/Session");
 const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT } = require("../middleware/jwtAuth");
 const { deleteFirebaseUser } = require("../config/firebase");
 
 const router = express.Router();
@@ -775,8 +776,7 @@ router.put(
  */
 router.get(
   "/following",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
   async (req, res) => {
     try {
       const { user } = req;
@@ -787,15 +787,20 @@ router.get(
         isActive: true,
         deletedAt: null,
       })
-        .select("_id displayName photoURL username profile.firstName profile.lastName")
+        .select(
+          "_id displayName photoURL username profile.firstName profile.lastName"
+        )
         .lean();
 
       // Format the response
       const formattedUsers = followingUsers.map((followingUser) => ({
         id: followingUser._id,
         displayName: followingUser.displayName,
-        username: followingUser.username || 
-          `${followingUser.profile?.firstName || ""} ${followingUser.profile?.lastName || ""}`.trim() ||
+        username:
+          followingUser.username ||
+          `${followingUser.profile?.firstName || ""} ${
+            followingUser.profile?.lastName || ""
+          }`.trim() ||
           followingUser.displayName,
         photoURL: followingUser.photoURL,
         avatar: followingUser.photoURL,
