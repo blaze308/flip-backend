@@ -3,8 +3,7 @@ const { body, validationResult } = require("express-validator");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const Session = require("../models/Session");
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
-const { authenticateJWT } = require("../middleware/jwtAuth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const { deleteFirebaseUser } = require("../config/firebase");
 
 const router = express.Router();
@@ -16,8 +15,8 @@ const router = express.Router();
  */
 router.get(
   "/profile",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   async (req, res) => {
     try {
       const { user } = req;
@@ -74,8 +73,8 @@ router.get(
  */
 router.put(
   "/profile",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     // Validation rules
     body("displayName")
@@ -372,8 +371,8 @@ router.put(
  */
 router.delete(
   "/account",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     body("confirmDeletion")
       .equals("DELETE_MY_ACCOUNT")
@@ -470,8 +469,8 @@ router.delete(
  */
 router.get(
   "/sessions",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   async (req, res) => {
     try {
       const { user } = req;
@@ -510,8 +509,8 @@ router.get(
  */
 router.delete(
   "/sessions/:sessionId",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   async (req, res) => {
     try {
       const { user } = req;
@@ -571,8 +570,8 @@ router.delete(
  */
 router.get(
   "/audit-logs",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   async (req, res) => {
     try {
       const { user } = req;
@@ -611,8 +610,8 @@ router.get(
  */
 router.post(
   "/:userId/follow",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   async (req, res) => {
     try {
       const { userId } = req.params;
@@ -697,8 +696,8 @@ router.post(
  */
 router.put(
   "/notifications",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     body("email").optional().isBoolean().withMessage("Email must be boolean"),
     body("push").optional().isBoolean().withMessage("Push must be boolean"),

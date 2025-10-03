@@ -2,7 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const {
   uploadImage,
   uploadVideo,
@@ -134,8 +134,8 @@ const videoUpload = multer({
  */
 router.post(
   "/image",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   imageUpload.single("image"),
   async (req, res) => {
     let tempFilePath = null;
@@ -207,8 +207,8 @@ router.post(
  */
 router.post(
   "/video",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   videoUpload.single("video"),
   async (req, res) => {
     let tempFilePath = null;
@@ -290,8 +290,8 @@ router.post(
  */
 router.post(
   "/multiple-images",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   imageUpload.array("images", 10), // Max 10 images
   async (req, res) => {
     const tempFilePaths = [];

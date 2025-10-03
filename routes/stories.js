@@ -6,8 +6,7 @@ const fs = require("fs").promises;
 const jwt = require("jsonwebtoken");
 const Story = require("../models/Story");
 const User = require("../models/User");
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
-const { authenticateJWT } = require("../middleware/jwtAuth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const { body, validationResult, param, query } = require("express-validator");
 
 // Helper function to get username from user object
@@ -303,7 +302,7 @@ router.get("/:storyId", async (req, res) => {
 router.post(
   "/",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   upload.single("media"),
   validateStoryCreation,
   async (req, res) => {
@@ -449,7 +448,7 @@ router.post(
 router.get(
   "/feed",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
     query("offset").optional().isInt({ min: 0 }).toInt(),
@@ -504,7 +503,7 @@ router.get(
 router.get(
   "/user/:userId",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [param("userId").isMongoId().withMessage("Invalid user ID")],
   async (req, res) => {
     try {
@@ -559,7 +558,7 @@ router.get(
 router.get(
   "/my-stories",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   async (req, res) => {
     try {
       const stories = await Story.find({
@@ -594,7 +593,7 @@ router.get(
 router.post(
   "/:storyId/view",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [param("storyId").isMongoId().withMessage("Invalid story ID")],
   async (req, res) => {
     try {
@@ -662,7 +661,7 @@ router.post(
 router.post(
   "/:storyId/react",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     param("storyId").isMongoId().withMessage("Invalid story ID"),
     ...validateReaction,
@@ -743,7 +742,7 @@ router.post(
 router.delete(
   "/:storyId/react",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [param("storyId").isMongoId().withMessage("Invalid story ID")],
   async (req, res) => {
     try {
@@ -793,7 +792,7 @@ router.delete(
 router.get(
   "/:storyId/viewers",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [param("storyId").isMongoId().withMessage("Invalid story ID")],
   async (req, res) => {
     try {
@@ -851,7 +850,7 @@ router.get(
 router.delete(
   "/:storyId",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [param("storyId").isMongoId().withMessage("Invalid story ID")],
   async (req, res) => {
     try {
@@ -920,7 +919,7 @@ router.delete(
 router.get(
   "/analytics",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     query("startDate").optional().isISO8601().toDate(),
     query("endDate").optional().isISO8601().toDate(),

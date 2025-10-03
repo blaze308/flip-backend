@@ -4,7 +4,7 @@ const Comment = require("../models/Comment");
 const Post = require("../models/Post");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 
 const router = express.Router();
 
@@ -15,8 +15,8 @@ const router = express.Router();
  */
 router.get(
   "/post/:postId",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     param("postId").isMongoId().withMessage("Invalid post ID"),
     query("page")
@@ -154,8 +154,8 @@ router.get(
  */
 router.post(
   "/",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     body("postId").isMongoId().withMessage("Invalid post ID"),
     body("content")
@@ -295,8 +295,8 @@ router.post(
  */
 router.put(
   "/:commentId",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     param("commentId").isMongoId().withMessage("Invalid comment ID"),
     body("content")
@@ -399,8 +399,8 @@ router.put(
  */
 router.delete(
   "/:commentId",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [param("commentId").isMongoId().withMessage("Invalid comment ID")],
   async (req, res) => {
     try {
@@ -476,8 +476,8 @@ router.delete(
  */
 router.post(
   "/:commentId/like",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [param("commentId").isMongoId().withMessage("Invalid comment ID")],
   async (req, res) => {
     try {
@@ -546,8 +546,8 @@ router.post(
  */
 router.get(
   "/:commentId/replies",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     param("commentId").isMongoId().withMessage("Invalid comment ID"),
     query("page")

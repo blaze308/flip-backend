@@ -3,8 +3,7 @@ const { body, validationResult, query } = require("express-validator");
 const Post = require("../models/Post");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
-const { authenticateJWT } = require("../middleware/jwtAuth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 
 const router = express.Router();
 
@@ -193,7 +192,7 @@ router.get("/public/:postId", async (req, res) => {
 router.get(
   "/feed",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     query("page")
       .optional()
@@ -331,7 +330,7 @@ router.get(
 router.get(
   "/user/:userId",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     query("page")
       .optional()
@@ -468,7 +467,7 @@ router.get(
 router.post(
   "/",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     body("type")
       .isIn(["text", "image", "video"])
@@ -759,7 +758,7 @@ router.get("/:postId", authenticateJWT, requireSyncedUser, async (req, res) => {
 router.put(
   "/:postId",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     body("content")
       .optional()
@@ -916,145 +915,135 @@ router.put(
  *
  * Delete a post (only by the owner)
  */
-router.delete(
-  "/:postId",
-  authenticateJWT,
-  requireSyncedUser,
-  async (req, res) => {
-    try {
-      const { postId } = req.params;
-      const { user, firebaseUser } = req;
+router.delete("/:postId", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { user, firebaseUser } = req;
 
-      const post = await Post.findOne({
-        _id: postId,
-        userId: user._id,
-        isActive: true,
-        deletedAt: null,
-      });
+    const post = await Post.findOne({
+      _id: postId,
+      userId: user._id,
+      isActive: true,
+      deletedAt: null,
+    });
 
-      if (!post) {
-        return res.status(404).json({
-          success: false,
-          message: "Post not found or access denied",
-        });
-      }
-
-      // Soft delete the post
-      await post.softDelete();
-
-      // Log post deletion
-      await AuditLog.logAction({
-        userId: user._id,
-        firebaseUid: firebaseUser.uid,
-        action: "post_delete",
-        resource: "post",
-        resourceId: post._id.toString(),
-        success: true,
-        details: {
-          type: post.type,
-          likes: post.likes,
-          comments: post.comments,
-          shares: post.shares,
-        },
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent"),
-      });
-
-      res.json({
-        success: true,
-        message: "Post deleted successfully",
-      });
-    } catch (error) {
-      console.error("Delete post error:", error);
-
-      // Log failed post deletion
-      await AuditLog.logAction({
-        userId: req.user?._id,
-        firebaseUid: req.firebaseUser?.uid,
-        action: "post_delete",
-        resource: "post",
-        resourceId: req.params.postId,
+    if (!post) {
+      return res.status(404).json({
         success: false,
-        errorMessage: error.message,
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent"),
-      });
-
-      res.status(500).json({
-        success: false,
-        message: "Failed to delete post",
-        error:
-          process.env.NODE_ENV === "development"
-            ? error.message
-            : "Internal server error",
+        message: "Post not found or access denied",
       });
     }
+
+    // Soft delete the post
+    await post.softDelete();
+
+    // Log post deletion
+    await AuditLog.logAction({
+      userId: user._id,
+      firebaseUid: firebaseUser.uid,
+      action: "post_delete",
+      resource: "post",
+      resourceId: post._id.toString(),
+      success: true,
+      details: {
+        type: post.type,
+        likes: post.likes,
+        comments: post.comments,
+        shares: post.shares,
+      },
+      ipAddress: req.ip,
+      userAgent: req.get("User-Agent"),
+    });
+
+    res.json({
+      success: true,
+      message: "Post deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete post error:", error);
+
+    // Log failed post deletion
+    await AuditLog.logAction({
+      userId: req.user?._id,
+      firebaseUid: req.firebaseUser?.uid,
+      action: "post_delete",
+      resource: "post",
+      resourceId: req.params.postId,
+      success: false,
+      errorMessage: error.message,
+      ipAddress: req.ip,
+      userAgent: req.get("User-Agent"),
+    });
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete post",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
   }
-);
+});
 
 /**
  * POST /posts/:postId/like
  *
  * Like or unlike a post
  */
-router.post(
-  "/:postId/like",
-  authenticateJWT,
-  requireSyncedUser,
-  async (req, res) => {
-    try {
-      const { postId } = req.params;
-      const { user } = req;
+router.post("/:postId/like", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { user } = req;
 
-      const post = await Post.findOne({
-        _id: postId,
-        isActive: true,
-        deletedAt: null,
-      });
+    const post = await Post.findOne({
+      _id: postId,
+      isActive: true,
+      deletedAt: null,
+    });
 
-      if (!post) {
-        return res.status(404).json({
-          success: false,
-          message: "Post not found",
-        });
-      }
-
-      const isLiked = post.likedBy
-        .map((id) => id.toString())
-        .includes(user._id.toString());
-
-      console.log(`Debug: Like toggle for post ${postId}:`);
-      console.log(`  - user._id: ${user._id}`);
-      console.log(`  - likedBy: ${JSON.stringify(post.likedBy)}`);
-      console.log(`  - isLiked: ${isLiked}`);
-
-      if (isLiked) {
-        await post.unlike(user._id);
-      } else {
-        await post.like(user._id);
-      }
-
-      res.json({
-        success: true,
-        message: isLiked ? "Post unliked" : "Post liked",
-        data: {
-          isLiked: !isLiked,
-          likes: post.likes,
-        },
-      });
-    } catch (error) {
-      console.error("Toggle like error:", error);
-      res.status(500).json({
+    if (!post) {
+      return res.status(404).json({
         success: false,
-        message: "Failed to toggle like",
-        error:
-          process.env.NODE_ENV === "development"
-            ? error.message
-            : "Internal server error",
+        message: "Post not found",
       });
     }
+
+    const isLiked = post.likedBy
+      .map((id) => id.toString())
+      .includes(user._id.toString());
+
+    console.log(`Debug: Like toggle for post ${postId}:`);
+    console.log(`  - user._id: ${user._id}`);
+    console.log(`  - likedBy: ${JSON.stringify(post.likedBy)}`);
+    console.log(`  - isLiked: ${isLiked}`);
+
+    if (isLiked) {
+      await post.unlike(user._id);
+    } else {
+      await post.like(user._id);
+    }
+
+    res.json({
+      success: true,
+      message: isLiked ? "Post unliked" : "Post liked",
+      data: {
+        isLiked: !isLiked,
+        likes: post.likes,
+      },
+    });
+  } catch (error) {
+    console.error("Toggle like error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to toggle like",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
   }
-);
+});
 
 /**
  * POST /posts/:postId/share
@@ -1064,7 +1053,7 @@ router.post(
 router.post(
   "/:postId/share",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   async (req, res) => {
     try {
       const { postId } = req.params;
@@ -1113,7 +1102,7 @@ router.post(
 router.post(
   "/:postId/bookmark",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   async (req, res) => {
     try {
       const { postId } = req.params;
@@ -1182,71 +1171,66 @@ router.post(
  *
  * Hide or unhide a post for the current user
  */
-router.post(
-  "/:postId/hide",
-  authenticateJWT,
-  requireSyncedUser,
-  async (req, res) => {
-    try {
-      const { postId } = req.params;
-      const { user } = req;
+router.post("/:postId/hide", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { user } = req;
 
-      const post = await Post.findOne({
-        _id: postId,
-        isActive: true,
-        deletedAt: null,
-      });
+    const post = await Post.findOne({
+      _id: postId,
+      isActive: true,
+      deletedAt: null,
+    });
 
-      if (!post) {
-        return res.status(404).json({
-          success: false,
-          message: "Post not found",
-        });
-      }
-
-      const isHidden = user.hiddenPosts.includes(postId);
-
-      if (isHidden) {
-        await user.unhidePost(postId);
-      } else {
-        await user.hidePost(postId);
-      }
-
-      // Log hide action
-      await AuditLog.logAction({
-        userId: user._id,
-        firebaseUid: user.firebaseUid,
-        action: isHidden ? "post_unhide" : "post_hide",
-        resource: "post",
-        resourceId: postId,
-        success: true,
-        details: {
-          postType: post.type,
-          postUserId: post.userId.toString(),
-        },
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent"),
-      });
-
-      res.json({
-        success: true,
-        message: isHidden ? "Post unhidden" : "Post hidden",
-        data: {
-          isHidden: !isHidden,
-        },
-      });
-    } catch (error) {
-      console.error("Hide post error:", error);
-      res.status(500).json({
+    if (!post) {
+      return res.status(404).json({
         success: false,
-        message: "Failed to hide post",
-        error:
-          process.env.NODE_ENV === "development"
-            ? error.message
-            : "Internal server error",
+        message: "Post not found",
       });
     }
+
+    const isHidden = user.hiddenPosts.includes(postId);
+
+    if (isHidden) {
+      await user.unhidePost(postId);
+    } else {
+      await user.hidePost(postId);
+    }
+
+    // Log hide action
+    await AuditLog.logAction({
+      userId: user._id,
+      firebaseUid: user.firebaseUid,
+      action: isHidden ? "post_unhide" : "post_hide",
+      resource: "post",
+      resourceId: postId,
+      success: true,
+      details: {
+        postType: post.type,
+        postUserId: post.userId.toString(),
+      },
+      ipAddress: req.ip,
+      userAgent: req.get("User-Agent"),
+    });
+
+    res.json({
+      success: true,
+      message: isHidden ? "Post unhidden" : "Post hidden",
+      data: {
+        isHidden: !isHidden,
+      },
+    });
+  } catch (error) {
+    console.error("Hide post error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to hide post",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
   }
-);
+});
 
 module.exports = router;

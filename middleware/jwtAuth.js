@@ -109,6 +109,14 @@ const authenticateJWT = async (req, res, next) => {
     req.user = user;
     req.tokenPayload = decoded;
 
+    // Also set req.firebaseUser for compatibility with routes that expect it
+    // This ensures routes using firebaseUser.uid will work
+    req.firebaseUser = {
+      uid: user.firebaseUid,
+      email: user.email,
+      displayName: user.displayName,
+    };
+
     next();
   } catch (error) {
     console.error("JWT authentication middleware error:", error);
@@ -131,6 +139,7 @@ const optionalJWTAuth = async (req, res, next) => {
     if (!authHeader) {
       req.user = null;
       req.tokenPayload = null;
+      req.firebaseUser = null;
       return next();
     }
 
@@ -139,6 +148,7 @@ const optionalJWTAuth = async (req, res, next) => {
     if (!token) {
       req.user = null;
       req.tokenPayload = null;
+      req.firebaseUser = null;
       return next();
     }
 
@@ -149,13 +159,21 @@ const optionalJWTAuth = async (req, res, next) => {
       if (user && user.isActive) {
         req.user = user;
         req.tokenPayload = decoded;
+        // Also set req.firebaseUser for compatibility
+        req.firebaseUser = {
+          uid: user.firebaseUid,
+          email: user.email,
+          displayName: user.displayName,
+        };
       } else {
         req.user = null;
         req.tokenPayload = null;
+        req.firebaseUser = null;
       }
     } catch (jwtError) {
       req.user = null;
       req.tokenPayload = null;
+      req.firebaseUser = null;
     }
 
     next();
@@ -163,6 +181,7 @@ const optionalJWTAuth = async (req, res, next) => {
     console.error("Optional JWT auth middleware error:", error);
     req.user = null;
     req.tokenPayload = null;
+    req.firebaseUser = null;
     next();
   }
 };

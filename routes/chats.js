@@ -4,8 +4,7 @@ const multer = require("multer");
 const Chat = require("../models/Chat");
 const Message = require("../models/Message");
 const User = require("../models/User");
-const { authenticateJWT } = require("../middleware/jwtAuth");
-const { requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const {
   uploadToCloudinary,
   uploadRawFile,
@@ -48,7 +47,7 @@ const upload = multer({
 router.get(
   "/",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     query("page")
       .optional()
@@ -147,7 +146,7 @@ router.get(
 router.get(
   "/:chatId",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [param("chatId").isMongoId().withMessage("Invalid chat ID")],
   async (req, res) => {
     try {
@@ -342,7 +341,7 @@ router.post(
 router.get(
   "/:chatId/messages",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     param("chatId").isMongoId().withMessage("Invalid chat ID"),
     query("page")
@@ -453,7 +452,7 @@ router.get(
 router.post(
   "/:chatId/messages",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   messageSendLimiter,
   chatFileUploadLimiter,
   upload.single("media"),
@@ -685,7 +684,7 @@ router.post(
 router.put(
   "/:chatId/messages/:messageId/read",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     param("chatId").isMongoId().withMessage("Invalid chat ID"),
     param("messageId").isMongoId().withMessage("Invalid message ID"),
@@ -757,7 +756,7 @@ router.put(
 router.post(
   "/:chatId/messages/:messageId/reactions",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     param("chatId").isMongoId().withMessage("Invalid chat ID"),
     param("messageId").isMongoId().withMessage("Invalid message ID"),
@@ -838,7 +837,7 @@ router.post(
 router.delete(
   "/:chatId/messages/:messageId/reactions",
   authenticateJWT,
-  requireSyncedUser,
+  requireAuth,
   [
     param("chatId").isMongoId().withMessage("Invalid chat ID"),
     param("messageId").isMongoId().withMessage("Invalid message ID"),
