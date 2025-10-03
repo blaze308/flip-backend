@@ -672,7 +672,7 @@ router.post(
  *
  * Get a specific post by ID
  */
-router.get("/:postId", authenticateJWT, requireSyncedUser, async (req, res) => {
+router.get("/:postId", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { postId } = req.params;
     const { user } = req;

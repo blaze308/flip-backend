@@ -365,7 +365,7 @@ router.post(
         });
       }
 
-      // Get user information (req.user is already the database user from requireSyncedUser)
+      // Get user information (req.user is already the database user from requireAuth)
       const user = req.user;
       console.log("📖 Story Creation Debug:");
       console.log("  - User ID:", user._id);
@@ -555,35 +555,29 @@ router.get(
  * @desc    Get current user's stories
  * @access  Private
  */
-router.get(
-  "/my-stories",
-  authenticateJWT,
-  requireAuth,
-  async (req, res) => {
-    try {
-      const stories = await Story.find({
-        userId: req.user._id,
-        isActive: true,
-      }).sort({ createdAt: -1 });
+router.get("/my-stories", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const stories = await Story.find({
+      userId: req.user._id,
+      isActive: true,
+    }).sort({ createdAt: -1 });
 
-      res.json({
-        success: true,
-        message: "My stories retrieved successfully",
-        data: {
-          stories,
-        },
-      });
-    } catch (error) {
-      console.error("Error fetching my stories:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch my stories",
-        error:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
-      });
-    }
+    res.json({
+      success: true,
+      message: "My stories retrieved successfully",
+      data: {
+        stories,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching my stories:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch my stories",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
-);
+});
 
 /**
  * @route   POST /api/stories/:storyId/view
