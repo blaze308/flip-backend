@@ -79,38 +79,36 @@ router.get(
         });
       }
 
-      // Get comments
+      // Get comments (returns plain objects from aggregation)
       const comments = await Comment.findByPost(postId, {
         page,
         limit,
         sortBy,
         sortOrder,
+        userId: user._id.toString(), // Pass userId for isLiked calculation
       });
 
-      // Add isLiked field for current user
-      const commentsWithLikeStatus = comments.map((comment) => {
-        const commentObj = comment.toObject();
-        commentObj.isLiked = comment.isLikedBy(user._id);
-
+      // Format comments
+      const formattedComments = comments.map((comment) => {
         // Format user data
-        if (commentObj.userId) {
-          commentObj.author =
-            commentObj.userId.profile?.username ||
-            commentObj.userId.displayName ||
-            `${commentObj.userId.profile?.firstName || ""} ${
-              commentObj.userId.profile?.lastName || ""
+        if (comment.userId) {
+          comment.author =
+            comment.userId.profile?.username ||
+            comment.userId.displayName ||
+            `${comment.userId.profile?.firstName || ""} ${
+              comment.userId.profile?.lastName || ""
             }`.trim() ||
             "Unknown User";
-          commentObj.avatar = commentObj.userId.photoURL || "";
+          comment.avatar = comment.userId.photoURL || "";
+          
+          // Remove sensitive user data
+          delete comment.userId.profile;
+          delete comment.userId.displayName;
+          delete comment.userId.photoURL;
+          delete comment.userId;
         }
 
-        // Remove sensitive data
-        delete commentObj.likedBy;
-        delete commentObj.userId.profile;
-        delete commentObj.userId.displayName;
-        delete commentObj.userId.photoURL;
-
-        return commentObj;
+        return comment;
       });
 
       // Get total count for pagination
@@ -126,7 +124,7 @@ router.get(
         success: true,
         message: "Comments retrieved successfully",
         data: {
-          comments: commentsWithLikeStatus,
+          comments: formattedComments,
           pagination: {
             currentPage: page,
             totalPages: Math.ceil(totalComments / limit),
