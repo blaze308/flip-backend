@@ -476,10 +476,13 @@ router.post(
         textStyle,
         caption,
         privacy = "public",
-        allowReplies = true,
-        allowReactions = true,
-        allowScreenshot = true,
       } = req.body;
+
+      // Parse boolean fields (multipart sends as strings)
+      const allowReplies = req.body.allowReplies === "false" ? false : true;
+      const allowReactions = req.body.allowReactions === "false" ? false : true;
+      const allowScreenshot =
+        req.body.allowScreenshot === "false" ? false : true;
 
       const mentions = parseField(req.body.mentions) || [];
       const hashtags = parseField(req.body.hashtags) || [];
@@ -498,8 +501,10 @@ router.post(
         console.log("📖 Creating TEXT story (no file upload)");
       } else {
         // MEDIA STORY (image/video/audio) - Handle file upload with multer
-        console.log(`📖 Creating ${mediaType.toUpperCase()} story - processing file upload`);
-        
+        console.log(
+          `📖 Creating ${mediaType.toUpperCase()} story - processing file upload`
+        );
+
         try {
           await handleMediaUpload();
         } catch (uploadError) {
@@ -517,7 +522,7 @@ router.post(
             message: `Media file is required for ${mediaType} stories`,
           });
         }
-        
+
         console.log("📖 File uploaded successfully:", req.file.filename);
       }
 
