@@ -196,6 +196,7 @@ const storySchema = new Schema(
       default: function () {
         return new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
       },
+      index: false, // Disable auto-index; we use compound index instead
     },
     isActive: {
       type: Boolean,

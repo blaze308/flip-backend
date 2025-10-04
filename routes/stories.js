@@ -1144,11 +1144,35 @@ router.delete(
         });
       }
 
+      // Delete media from Cloudinary if exists
+      if (story.mediaUrl && story.mediaUrl.includes("cloudinary.com")) {
+        try {
+          const { deleteFile } = require("../config/cloudinary");
+
+          // Extract public_id from Cloudinary URL
+          const urlParts = story.mediaUrl.split("/");
+          const publicIdWithExtension = urlParts.slice(-2).join("/"); // Get folder/filename
+          const publicId = publicIdWithExtension.split(".")[0]; // Remove extension
+
+          // Determine resource type
+          let resourceType = "image";
+          if (story.mediaType === "video") resourceType = "video";
+          if (story.mediaType === "audio") resourceType = "video"; // Cloudinary uses 'video' for audio
+
+          console.log(
+            `📖 Deleting ${resourceType} from Cloudinary: ${publicId}`
+          );
+          await deleteFile(publicId, resourceType);
+          console.log("📖 Cloudinary file deleted successfully");
+        } catch (cloudinaryError) {
+          console.error("📖 Cloudinary deletion error:", cloudinaryError);
+          // Continue anyway - soft delete the record even if Cloudinary fails
+        }
+      }
+
       // Soft delete by setting isActive to false
       story.isActive = false;
       await story.save();
-
-      // TODO: Delete media files from storage
 
       res.json({
         success: true,
