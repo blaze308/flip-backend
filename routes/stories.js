@@ -9,17 +9,19 @@ const User = require("../models/User");
 const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const { body, validationResult, param, query } = require("express-validator");
 
-// Helper function to get username from user object (prefer short username)
+// Helper function to get username from user object - EXACT SAME AS POSTS
 const getUsernameFromUser = (user) => {
-  // Priority: profile.username > profile.firstName > email prefix > first word of displayName > "user"
+  // Priority: profile.username > displayName > firstName + lastName > "Unknown User"
+  // This MUST match the logic in posts.js for consistency
   if (user.profile?.username) return user.profile.username;
-  if (user.profile?.firstName) return user.profile.firstName;
-  if (user.email) return user.email.split("@")[0];
-  if (user.displayName) {
-    // Get first name from display name (e.g., "John Doe" -> "John")
-    return user.displayName.split(" ")[0];
-  }
-  return "user";
+  if (user.displayName) return user.displayName;
+
+  const fullName = `${user.profile?.firstName || ""} ${
+    user.profile?.lastName || ""
+  }`.trim();
+  if (fullName) return fullName;
+
+  return "Unknown User";
 };
 
 // Configure multer for file uploads
