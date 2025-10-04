@@ -203,29 +203,31 @@ router.get(
             preserveNullAndEmptyArrays: true,
           },
         },
-        // Add formatted username and avatar
+        // Add formatted username and avatar (same as posts)
         {
           $addFields: {
             username: {
-              $ifNull: [
-                "$userDetails.profile.username",
-                {
-                  $ifNull: [
-                    {
-                      $arrayElemAt: [
-                        { $split: ["$userDetails.email", "@"] },
-                        0,
-                      ],
-                    },
-                    {
+              $cond: {
+                if: { $gt: ["$userDetails.profile.username", null] },
+                then: "$userDetails.profile.username",
+                else: {
+                  $cond: {
+                    if: { $gt: ["$userDetails.displayName", null] },
+                    then: {
                       $arrayElemAt: [
                         { $split: ["$userDetails.displayName", " "] },
                         0,
                       ],
                     },
-                  ],
+                    else: {
+                      $arrayElemAt: [
+                        { $split: ["$userDetails.email", "@"] },
+                        0,
+                      ],
+                    },
+                  },
                 },
-              ],
+              },
             },
             userAvatar: {
               $ifNull: [
@@ -370,29 +372,31 @@ router.get(
             preserveNullAndEmptyArrays: true,
           },
         },
-        // Add formatted username and avatar
+        // Add formatted username and avatar (same as posts)
         {
           $addFields: {
             username: {
-              $ifNull: [
-                "$userDetails.profile.username",
-                {
-                  $ifNull: [
-                    {
-                      $arrayElemAt: [
-                        { $split: ["$userDetails.email", "@"] },
-                        0,
-                      ],
-                    },
-                    {
+              $cond: {
+                if: { $gt: ["$userDetails.profile.username", null] },
+                then: "$userDetails.profile.username",
+                else: {
+                  $cond: {
+                    if: { $gt: ["$userDetails.displayName", null] },
+                    then: {
                       $arrayElemAt: [
                         { $split: ["$userDetails.displayName", " "] },
                         0,
                       ],
                     },
-                  ],
+                    else: {
+                      $arrayElemAt: [
+                        { $split: ["$userDetails.email", "@"] },
+                        0,
+                      ],
+                    },
+                  },
                 },
-              ],
+              },
             },
             userAvatar: {
               $ifNull: [
