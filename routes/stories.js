@@ -60,7 +60,7 @@ const upload = multer({
   },
 });
 
-// Validation middleware
+// Validation middleware (flexible for both JSON and multipart)
 const validateStoryCreation = [
   body("mediaType")
     .isIn(["text", "image", "video", "audio"])
@@ -79,11 +79,35 @@ const validateStoryCreation = [
     .withMessage("Invalid privacy setting"),
   body("mentions")
     .optional()
-    .isArray()
+    .custom((value) => {
+      // Allow both arrays and JSON strings (for multipart)
+      if (Array.isArray(value)) return true;
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed);
+        } catch (e) {
+          return false;
+        }
+      }
+      return false;
+    })
     .withMessage("Mentions must be an array"),
   body("hashtags")
     .optional()
-    .isArray()
+    .custom((value) => {
+      // Allow both arrays and JSON strings (for multipart)
+      if (Array.isArray(value)) return true;
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          return Array.isArray(parsed);
+        } catch (e) {
+          return false;
+        }
+      }
+      return false;
+    })
     .withMessage("Hashtags must be an array"),
 ];
 
@@ -199,6 +223,106 @@ router.get(
           feed: [],
           hasMore: false,
         },
+      });
+    }
+  }
+);
+
+/**
+ * @route   GET /api/stories/feed
+ * @desc    Get stories feed for user (MUST come before /:storyId)
+ * @access  Private
+ */
+router.get(
+  "/feed",
+  authenticateJWT,
+  requireAuth,
+  [
+    query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
+    query("offset").optional().isInt({ min: 0 }).toInt(),
+  ],
+  async (req, res) => {
+    try {
+      const { limit = 50, offset = 0 } = req.query;
+
+      // Get user's relationships
+      const { friends, closeFriends } = await getUserRelationships(
+        req.user._id
+      );
+      const followingIds = []; // TODO: Get following list from user relationships
+
+      // Build filter for stories
+      const filter = {
+        isActive: true,
+        expiresAt: { $gt: new Date() },
+        $or: [
+          // User's own stories
+          { userId: req.user._id },
+          // Public stories from anyone
+          { privacy: "public" },
+          // Friends stories
+          {
+            privacy: "friends",
+            userId: { $in: friends },
+          },
+          // Close friends stories
+          {
+            privacy: "closeFriends",
+            userId: { $in: closeFriends },
+          },
+          // Custom privacy where user is in customViewers
+          {
+            privacy: "custom",
+            customViewers: req.user._id,
+          },
+        ],
+      };
+
+      // Aggregate stories by user
+      const storyGroups = await Story.aggregate([
+        { $match: filter },
+        {
+          $group: {
+            _id: "$userId",
+            username: { $first: "$username" },
+            userAvatar: { $first: "$userAvatar" },
+            stories: { $push: "$$ROOT" },
+            lastStoryTime: { $max: "$createdAt" },
+            hasUnviewedStories: {
+              $first: {
+                $cond: {
+                  if: {
+                    $not: {
+                      $in: [req.user._id, { $ifNull: ["$viewedBy", []] }],
+                    },
+                  },
+                  then: true,
+                  else: false,
+                },
+              },
+            },
+          },
+        },
+        { $sort: { hasUnviewedStories: -1, lastStoryTime: -1 } },
+        { $skip: offset },
+        { $limit: limit },
+      ]);
+
+      res.json({
+        success: true,
+        message: "Stories feed retrieved successfully",
+        data: {
+          feed: storyGroups,
+          hasMore: storyGroups.length === limit,
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching stories feed:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch stories feed",
+        error:
+          process.env.NODE_ENV === "development" ? error.message : undefined,
       });
     }
   }
@@ -345,20 +469,33 @@ router.post(
         });
       }
 
+      // Parse body fields (handle both JSON and multipart string values)
+      const parseField = (field) => {
+        if (typeof field === "string") {
+          try {
+            return JSON.parse(field);
+          } catch (e) {
+            return field;
+          }
+        }
+        return field;
+      };
+
       const {
         mediaType,
         textContent,
         textStyle,
         caption,
-        mentions = [],
-        hashtags = [],
         privacy = "public",
-        customViewers = [],
         allowReplies = true,
         allowReactions = true,
         allowScreenshot = true,
-        metadata = {},
       } = req.body;
+
+      const mentions = parseField(req.body.mentions) || [];
+      const hashtags = parseField(req.body.hashtags) || [];
+      const customViewers = parseField(req.body.customViewers) || [];
+      const metadata = parseField(req.body.metadata) || {};
 
       // Validate required fields based on media type
       if (mediaType === "text" && !textContent) {
@@ -445,61 +582,6 @@ router.post(
         message: "Failed to create story",
         error:
           process.env.NODE_ENV === "development" ? error.message : undefined,
-      });
-    }
-  }
-);
-
-/**
- * @route   GET /api/stories/feed
- * @desc    Get stories feed for user
- * @access  Private
- */
-router.get(
-  "/feed",
-  authenticateJWT,
-  requireAuth,
-  [
-    query("limit").optional().isInt({ min: 1, max: 100 }).toInt(),
-    query("offset").optional().isInt({ min: 0 }).toInt(),
-  ],
-  async (req, res) => {
-    try {
-      const { limit = 50, offset = 0 } = req.query;
-
-      // Get user's relationships
-      const { friends, closeFriends } = await getUserRelationships(
-        req.user._id
-      );
-      const followingIds = []; // TODO: Get following list from user relationships
-
-      // Get stories feed
-      const storyGroups = await Story.getStoriesFeed(
-        req.user._id,
-        followingIds,
-        friends
-      );
-
-      res.json({
-        success: true,
-        message: "Stories feed retrieved successfully",
-        data: {
-          feed: storyGroups,
-          hasMore: storyGroups.length === limit,
-        },
-      });
-    } catch (error) {
-      console.error("Error fetching stories feed:", error);
-      console.error("Error stack:", error.stack);
-
-      // Return empty feed instead of error for better UX
-      res.json({
-        success: true,
-        message: "Stories feed retrieved successfully",
-        data: {
-          feed: [],
-          hasMore: false,
-        },
       });
     }
   }
