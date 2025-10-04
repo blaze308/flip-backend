@@ -302,14 +302,13 @@ router.get(
       );
       const followingIds = []; // TODO: Get following list from user relationships
 
-      // Build filter for stories
+      // Build filter for stories (EXCLUDE current user's stories - they see it in "Your Story" button)
       const filter = {
         isActive: true,
         expiresAt: { $gt: new Date() },
+        userId: { $ne: req.user._id }, // Exclude current user's stories
         $or: [
-          // User's own stories
-          { userId: req.user._id },
-          // Public stories from anyone
+          // Public stories from anyone (except current user)
           { privacy: "public" },
           // Friends stories
           {
@@ -671,21 +670,59 @@ router.post(
           typeof metadata === "string" ? JSON.parse(metadata) : metadata,
       };
 
-      // Handle media file
+      // Handle media file - Upload to Cloudinary
       if (req.file) {
-        // In production, upload to cloud storage (AWS S3, Google Cloud, etc.)
-        storyData.mediaUrl = `/uploads/stories/${req.file.filename}`;
+        try {
+          const {
+            uploadImage,
+            uploadVideo,
+            uploadAudio,
+            generateVideoThumbnail,
+          } = require("../config/cloudinary");
+          const fs = require("fs");
 
-        // For videos, you might want to generate thumbnails
-        if (mediaType === "video") {
-          // TODO: Generate video thumbnail
-          storyData.thumbnailUrl = `/uploads/thumbnails/${req.file.filename}.jpg`;
-        }
+          let cloudinaryResult;
 
-        // For audio/video, you might want to extract duration
-        if (mediaType === "video" || mediaType === "audio") {
-          // TODO: Extract media duration using ffmpeg or similar
-          storyData.duration = 30000; // Mock 30 seconds
+          if (mediaType === "image") {
+            console.log("📖 Uploading image to Cloudinary:", req.file.path);
+            cloudinaryResult = await uploadImage(req.file.path, {
+              folder: `stories/${user._id}`,
+            });
+            storyData.mediaUrl = cloudinaryResult.url;
+          } else if (mediaType === "video") {
+            console.log("📖 Uploading video to Cloudinary:", req.file.path);
+            cloudinaryResult = await uploadVideo(req.file.path, {
+              folder: `stories/${user._id}`,
+            });
+            storyData.mediaUrl = cloudinaryResult.url;
+            storyData.thumbnailUrl = generateVideoThumbnail(
+              cloudinaryResult.publicId
+            );
+            storyData.duration = cloudinaryResult.duration * 1000; // Convert to ms
+          } else if (mediaType === "audio") {
+            console.log("📖 Uploading audio to Cloudinary:", req.file.path);
+            cloudinaryResult = await uploadAudio(req.file.path, {
+              folder: `stories/${user._id}`,
+            });
+            storyData.mediaUrl = cloudinaryResult.url;
+            storyData.duration = cloudinaryResult.duration * 1000; // Convert to ms
+          }
+
+          // Delete temporary file
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch (unlinkError) {
+            console.error("📖 Error deleting temp file:", unlinkError);
+          }
+
+          console.log("📖 Cloudinary upload successful:", storyData.mediaUrl);
+        } catch (cloudinaryError) {
+          console.error("📖 Cloudinary upload error:", cloudinaryError);
+          return res.status(500).json({
+            success: false,
+            message: "Failed to upload media to cloud storage",
+            error: cloudinaryError.message,
+          });
         }
       }
 
