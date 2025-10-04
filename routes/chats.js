@@ -9,6 +9,7 @@ const {
   uploadToCloudinary,
   uploadRawFile,
   uploadAudio,
+  generateVideoThumbnail,
 } = require("../config/cloudinary");
 const {
   messageSendLimiter,
