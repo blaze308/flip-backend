@@ -520,231 +520,225 @@ router.get("/:storyId", async (req, res) => {
  * @desc    Create a new story
  * @access  Private
  */
-router.post(
-  "/",
-  authenticateJWT,
-  requireAuth,
-  validateStoryCreation,
-  async (req, res) => {
-    // Handle file upload for media stories ONLY
-    const handleMediaUpload = () => {
-      return new Promise((resolve, reject) => {
-        upload.single("media")(req, res, (err) => {
-          if (err) {
-            console.error("📖 Multer error:", err);
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
+router.post("/", authenticateJWT, requireAuth, async (req, res) => {
+  // Handle file upload for media stories ONLY
+  const handleMediaUpload = () => {
+    return new Promise((resolve, reject) => {
+      upload.single("media")(req, res, (err) => {
+        if (err) {
+          console.error("📖 Multer error:", err);
+          reject(err);
+        } else {
+          resolve();
+        }
       });
+    });
+  };
+
+  try {
+    console.log("📖 Story Creation Request:");
+    console.log("  - Content-Type:", req.headers["content-type"]);
+    console.log("  - Body:", JSON.stringify(req.body, null, 2));
+    console.log("  - Media Type:", req.body.mediaType);
+
+    // Parse body fields (handle both JSON and multipart string values)
+    const parseField = (field) => {
+      if (typeof field === "string") {
+        try {
+          return JSON.parse(field);
+        } catch (e) {
+          return field;
+        }
+      }
+      return field;
     };
 
-    try {
-      console.log("📖 Story Creation Request:");
-      console.log("  - Content-Type:", req.headers["content-type"]);
-      console.log("  - Media Type:", req.body.mediaType);
+    const {
+      mediaType,
+      textContent,
+      textStyle,
+      caption,
+      privacy = "public",
+    } = req.body;
 
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        console.log("📖 Validation Errors:", errors.array());
+    // Validate mediaType
+    if (
+      !mediaType ||
+      !["text", "image", "video", "audio"].includes(mediaType)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid or missing media type. Must be text, image, video, or audio",
+      });
+    }
+
+    // Parse boolean fields (multipart sends as strings)
+    const allowReplies = req.body.allowReplies === "false" ? false : true;
+    const allowReactions = req.body.allowReactions === "false" ? false : true;
+    const allowScreenshot = req.body.allowScreenshot === "false" ? false : true;
+
+    const mentions = parseField(req.body.mentions) || [];
+    const hashtags = parseField(req.body.hashtags) || [];
+    const customViewers = parseField(req.body.customViewers) || [];
+    const metadata = parseField(req.body.metadata) || {};
+
+    // Validate and handle based on media type
+    if (mediaType === "text") {
+      // TEXT STORY - No file upload needed
+      if (!textContent) {
         return res.status(400).json({
           success: false,
-          message: "Validation failed",
-          errors: errors.array(),
+          message: "Text content is required for text stories",
+        });
+      }
+      console.log("📖 Creating TEXT story (no file upload)");
+    } else {
+      // MEDIA STORY (image/video/audio) - Handle file upload with multer
+      console.log(
+        `📖 Creating ${mediaType.toUpperCase()} story - processing file upload`
+      );
+
+      try {
+        await handleMediaUpload();
+      } catch (uploadError) {
+        return res.status(400).json({
+          success: false,
+          message: "File upload failed",
+          error: uploadError.message,
         });
       }
 
-      // Parse body fields (handle both JSON and multipart string values)
-      const parseField = (field) => {
-        if (typeof field === "string") {
-          try {
-            return JSON.parse(field);
-          } catch (e) {
-            return field;
-          }
-        }
-        return field;
-      };
-
-      const {
-        mediaType,
-        textContent,
-        textStyle,
-        caption,
-        privacy = "public",
-      } = req.body;
-
-      // Parse boolean fields (multipart sends as strings)
-      const allowReplies = req.body.allowReplies === "false" ? false : true;
-      const allowReactions = req.body.allowReactions === "false" ? false : true;
-      const allowScreenshot =
-        req.body.allowScreenshot === "false" ? false : true;
-
-      const mentions = parseField(req.body.mentions) || [];
-      const hashtags = parseField(req.body.hashtags) || [];
-      const customViewers = parseField(req.body.customViewers) || [];
-      const metadata = parseField(req.body.metadata) || {};
-
-      // Validate and handle based on media type
-      if (mediaType === "text") {
-        // TEXT STORY - No file upload needed
-        if (!textContent) {
-          return res.status(400).json({
-            success: false,
-            message: "Text content is required for text stories",
-          });
-        }
-        console.log("📖 Creating TEXT story (no file upload)");
-      } else {
-        // MEDIA STORY (image/video/audio) - Handle file upload with multer
-        console.log(
-          `📖 Creating ${mediaType.toUpperCase()} story - processing file upload`
-        );
-
-        try {
-          await handleMediaUpload();
-        } catch (uploadError) {
-          return res.status(400).json({
-            success: false,
-            message: "File upload failed",
-            error: uploadError.message,
-          });
-        }
-
-        // Verify file was uploaded
-        if (!req.file) {
-          return res.status(400).json({
-            success: false,
-            message: `Media file is required for ${mediaType} stories`,
-          });
-        }
-
-        console.log("📖 File uploaded successfully:", req.file.filename);
+      // Verify file was uploaded
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: `Media file is required for ${mediaType} stories`,
+        });
       }
 
-      // Get user information (req.user is already the database user from requireAuth)
-      const user = req.user;
-      console.log("📖 Story Creation Debug:");
-      console.log("  - User ID:", user._id);
-      console.log("  - Username (profile):", user.profile?.username);
-      console.log("  - Display Name:", user.displayName);
-      console.log("  - Email:", user.email);
-      console.log("  - PhotoURL:", user.photoURL);
-      console.log("  - ProfileImageUrl:", user.profileImageUrl);
-      console.log("  - Profile:", user.profile);
-      console.log("  - Media Type:", mediaType);
-      console.log("  - Text Content:", textContent);
-      console.log("  - Text Style:", textStyle);
-
-      // Prepare story data
-      const userAvatar =
-        user.photoURL ||
-        user.profile?.profilePicture ||
-        user.profileImageUrl ||
-        null;
-      console.log("  - Final userAvatar:", userAvatar);
-
-      const storyData = {
-        userId: user._id,
-        username: getUsernameFromUser(user),
-        userAvatar: userAvatar,
-        mediaType,
-        textContent: mediaType === "text" ? textContent : undefined,
-        textStyle:
-          mediaType === "text" && textStyle
-            ? typeof textStyle === "string"
-              ? JSON.parse(textStyle)
-              : textStyle
-            : undefined,
-        caption,
-        mentions: mentions.map((m) => (m.startsWith("@") ? m : `@${m}`)),
-        hashtags: hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)),
-        privacy,
-        customViewers: privacy === "custom" ? customViewers : [],
-        allowReplies: Boolean(allowReplies),
-        allowReactions: Boolean(allowReactions),
-        allowScreenshot: Boolean(allowScreenshot),
-        metadata:
-          typeof metadata === "string" ? JSON.parse(metadata) : metadata,
-      };
-
-      // Handle media file - Upload to Cloudinary
-      if (req.file) {
-        try {
-          const {
-            uploadImage,
-            uploadVideo,
-            uploadAudio,
-            generateVideoThumbnail,
-          } = require("../config/cloudinary");
-          const fs = require("fs");
-
-          let cloudinaryResult;
-
-          if (mediaType === "image") {
-            console.log("📖 Uploading image to Cloudinary:", req.file.path);
-            cloudinaryResult = await uploadImage(req.file.path, {
-              folder: `stories/${user._id}`,
-            });
-            storyData.mediaUrl = cloudinaryResult.url;
-          } else if (mediaType === "video") {
-            console.log("📖 Uploading video to Cloudinary:", req.file.path);
-            cloudinaryResult = await uploadVideo(req.file.path, {
-              folder: `stories/${user._id}`,
-            });
-            storyData.mediaUrl = cloudinaryResult.url;
-            storyData.thumbnailUrl = generateVideoThumbnail(
-              cloudinaryResult.publicId
-            );
-            storyData.duration = cloudinaryResult.duration * 1000; // Convert to ms
-          } else if (mediaType === "audio") {
-            console.log("📖 Uploading audio to Cloudinary:", req.file.path);
-            cloudinaryResult = await uploadAudio(req.file.path, {
-              folder: `stories/${user._id}`,
-            });
-            storyData.mediaUrl = cloudinaryResult.url;
-            storyData.duration = cloudinaryResult.duration * 1000; // Convert to ms
-          }
-
-          // Delete temporary file
-          try {
-            fs.unlinkSync(req.file.path);
-          } catch (unlinkError) {
-            console.error("📖 Error deleting temp file:", unlinkError);
-          }
-
-          console.log("📖 Cloudinary upload successful:", storyData.mediaUrl);
-        } catch (cloudinaryError) {
-          console.error("📖 Cloudinary upload error:", cloudinaryError);
-          return res.status(500).json({
-            success: false,
-            message: "Failed to upload media to cloud storage",
-            error: cloudinaryError.message,
-          });
-        }
-      }
-
-      // Create story
-      const story = new Story(storyData);
-      await story.save();
-
-      res.status(201).json({
-        success: true,
-        message: "Story created successfully",
-        data: story,
-      });
-    } catch (error) {
-      console.error("Error creating story:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to create story",
-        error:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
-      });
+      console.log("📖 File uploaded successfully:", req.file.filename);
     }
+
+    // Get user information (req.user is already the database user from requireAuth)
+    const user = req.user;
+    console.log("📖 Story Creation Debug:");
+    console.log("  - User ID:", user._id);
+    console.log("  - Username (profile):", user.profile?.username);
+    console.log("  - Display Name:", user.displayName);
+    console.log("  - Email:", user.email);
+    console.log("  - PhotoURL:", user.photoURL);
+    console.log("  - ProfileImageUrl:", user.profileImageUrl);
+    console.log("  - Profile:", user.profile);
+    console.log("  - Media Type:", mediaType);
+    console.log("  - Text Content:", textContent);
+    console.log("  - Text Style:", textStyle);
+
+    // Prepare story data
+    const userAvatar =
+      user.photoURL ||
+      user.profile?.profilePicture ||
+      user.profileImageUrl ||
+      null;
+    console.log("  - Final userAvatar:", userAvatar);
+
+    const storyData = {
+      userId: user._id,
+      username: getUsernameFromUser(user),
+      userAvatar: userAvatar,
+      mediaType,
+      textContent: mediaType === "text" ? textContent : undefined,
+      textStyle:
+        mediaType === "text" && textStyle
+          ? typeof textStyle === "string"
+            ? JSON.parse(textStyle)
+            : textStyle
+          : undefined,
+      caption,
+      mentions: mentions.map((m) => (m.startsWith("@") ? m : `@${m}`)),
+      hashtags: hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)),
+      privacy,
+      customViewers: privacy === "custom" ? customViewers : [],
+      allowReplies: Boolean(allowReplies),
+      allowReactions: Boolean(allowReactions),
+      allowScreenshot: Boolean(allowScreenshot),
+      metadata: typeof metadata === "string" ? JSON.parse(metadata) : metadata,
+    };
+
+    // Handle media file - Upload to Cloudinary
+    if (req.file) {
+      try {
+        const {
+          uploadImage,
+          uploadVideo,
+          uploadAudio,
+          generateVideoThumbnail,
+        } = require("../config/cloudinary");
+        const fs = require("fs");
+
+        let cloudinaryResult;
+
+        if (mediaType === "image") {
+          console.log("📖 Uploading image to Cloudinary:", req.file.path);
+          cloudinaryResult = await uploadImage(req.file.path, {
+            folder: `stories/${user._id}`,
+          });
+          storyData.mediaUrl = cloudinaryResult.url;
+        } else if (mediaType === "video") {
+          console.log("📖 Uploading video to Cloudinary:", req.file.path);
+          cloudinaryResult = await uploadVideo(req.file.path, {
+            folder: `stories/${user._id}`,
+          });
+          storyData.mediaUrl = cloudinaryResult.url;
+          storyData.thumbnailUrl = generateVideoThumbnail(
+            cloudinaryResult.publicId
+          );
+          storyData.duration = cloudinaryResult.duration * 1000; // Convert to ms
+        } else if (mediaType === "audio") {
+          console.log("📖 Uploading audio to Cloudinary:", req.file.path);
+          cloudinaryResult = await uploadAudio(req.file.path, {
+            folder: `stories/${user._id}`,
+          });
+          storyData.mediaUrl = cloudinaryResult.url;
+          storyData.duration = cloudinaryResult.duration * 1000; // Convert to ms
+        }
+
+        // Delete temporary file
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (unlinkError) {
+          console.error("📖 Error deleting temp file:", unlinkError);
+        }
+
+        console.log("📖 Cloudinary upload successful:", storyData.mediaUrl);
+      } catch (cloudinaryError) {
+        console.error("📖 Cloudinary upload error:", cloudinaryError);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to upload media to cloud storage",
+          error: cloudinaryError.message,
+        });
+      }
+    }
+
+    // Create story
+    const story = new Story(storyData);
+    await story.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Story created successfully",
+      data: story,
+    });
+  } catch (error) {
+    console.error("Error creating story:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to create story",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
-);
+});
 
 /**
  * @route   GET /api/stories/user/:userId
