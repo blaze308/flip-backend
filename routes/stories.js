@@ -203,38 +203,33 @@ router.get(
             preserveNullAndEmptyArrays: true,
           },
         },
-        // Add formatted username and avatar (same as posts)
+        // Add formatted username and avatar (EXACT same as posts)
         {
           $addFields: {
             username: {
-              $cond: {
-                if: { $gt: ["$userDetails.profile.username", null] },
-                then: "$userDetails.profile.username",
-                else: {
-                  $cond: {
-                    if: { $gt: ["$userDetails.displayName", null] },
-                    then: {
-                      $arrayElemAt: [
-                        { $split: ["$userDetails.displayName", " "] },
-                        0,
-                      ],
+              $cond: [
+                { $ne: ["$userDetails.profile.username", null] },
+                "$userDetails.profile.username",
+                {
+                  $cond: [
+                    { $ne: ["$userDetails.displayName", null] },
+                    "$userDetails.displayName",
+                    {
+                      $trim: {
+                        input: {
+                          $concat: [
+                            { $ifNull: ["$userDetails.profile.firstName", ""] },
+                            " ",
+                            { $ifNull: ["$userDetails.profile.lastName", ""] },
+                          ],
+                        },
+                      },
                     },
-                    else: {
-                      $arrayElemAt: [
-                        { $split: ["$userDetails.email", "@"] },
-                        0,
-                      ],
-                    },
-                  },
+                  ],
                 },
-              },
-            },
-            userAvatar: {
-              $ifNull: [
-                "$userDetails.photoURL",
-                "$userDetails.profileImageUrl",
               ],
             },
+            userAvatar: "$userDetails.photoURL",
           },
         },
         // Remove userDetails to clean up response
@@ -372,38 +367,33 @@ router.get(
             preserveNullAndEmptyArrays: true,
           },
         },
-        // Add formatted username and avatar (same as posts)
+        // Add formatted username and avatar (EXACT same as posts)
         {
           $addFields: {
             username: {
-              $cond: {
-                if: { $gt: ["$userDetails.profile.username", null] },
-                then: "$userDetails.profile.username",
-                else: {
-                  $cond: {
-                    if: { $gt: ["$userDetails.displayName", null] },
-                    then: {
-                      $arrayElemAt: [
-                        { $split: ["$userDetails.displayName", " "] },
-                        0,
-                      ],
+              $cond: [
+                { $ne: ["$userDetails.profile.username", null] },
+                "$userDetails.profile.username",
+                {
+                  $cond: [
+                    { $ne: ["$userDetails.displayName", null] },
+                    "$userDetails.displayName",
+                    {
+                      $trim: {
+                        input: {
+                          $concat: [
+                            { $ifNull: ["$userDetails.profile.firstName", ""] },
+                            " ",
+                            { $ifNull: ["$userDetails.profile.lastName", ""] },
+                          ],
+                        },
+                      },
                     },
-                    else: {
-                      $arrayElemAt: [
-                        { $split: ["$userDetails.email", "@"] },
-                        0,
-                      ],
-                    },
-                  },
+                  ],
                 },
-              },
-            },
-            userAvatar: {
-              $ifNull: [
-                "$userDetails.photoURL",
-                "$userDetails.profileImageUrl",
               ],
             },
+            userAvatar: "$userDetails.photoURL",
           },
         },
         // Remove userDetails to clean up response
