@@ -18,7 +18,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      index: true,
       trim: true,
     },
 
@@ -34,7 +33,6 @@ const userSchema = new mongoose.Schema(
       },
       lowercase: true,
       trim: true,
-      index: true,
       validate: {
         validator: function (email) {
           if (!email) return true; // Allow empty if not required
@@ -336,8 +334,7 @@ const userSchema = new mongoose.Schema(
 );
 
 // Indexes for better query performance
-userSchema.index({ email: 1 });
-userSchema.index({ firebaseUid: 1 });
+// Note: email and firebaseUid indexes are created via unique constraint in schema
 userSchema.index({ "profile.firstName": 1, "profile.lastName": 1 });
 userSchema.index({ lastLogin: -1 });
 userSchema.index({ createdAt: -1 });

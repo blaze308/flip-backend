@@ -303,7 +303,17 @@ router.post(
   "/",
   authenticateJWT,
   requireAuth,
-  upload.single("media"),
+  // Conditional multer middleware - only use it if Content-Type is multipart
+  (req, res, next) => {
+    const contentType = req.headers["content-type"] || "";
+    if (contentType.includes("multipart/form-data")) {
+      // Use multer for media uploads
+      upload.single("media")(req, res, next);
+    } else {
+      // Skip multer for JSON requests (text stories)
+      next();
+    }
+  },
   validateStoryCreation,
   async (req, res) => {
     try {

@@ -196,7 +196,6 @@ const storySchema = new Schema(
       default: function () {
         return new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
       },
-      index: true,
     },
     isActive: {
       type: Boolean,
@@ -228,8 +227,7 @@ const storySchema = new Schema(
 
 // Indexes for better performance
 storySchema.index({ userId: 1, createdAt: -1 });
-storySchema.index({ expiresAt: 1 });
-storySchema.index({ isActive: 1, expiresAt: 1 });
+storySchema.index({ isActive: 1, expiresAt: 1 }); // Compound index covers both queries
 storySchema.index({ "viewers.userId": 1 });
 storySchema.index({ "reactions.userId": 1 });
 
