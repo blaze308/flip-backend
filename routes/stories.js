@@ -538,8 +538,36 @@ router.post("/", authenticateJWT, requireAuth, async (req, res) => {
   try {
     console.log("📖 Story Creation Request:");
     console.log("  - Content-Type:", req.headers["content-type"]);
+    console.log("  - Raw body keys:", Object.keys(req.body));
     console.log("  - Body:", JSON.stringify(req.body, null, 2));
     console.log("  - Media Type:", req.body.mediaType);
+    console.log(
+      "  - Is multipart?:",
+      req.headers["content-type"]?.includes("multipart")
+    );
+
+    // For multipart requests, we need to run multer FIRST to parse the body
+    if (req.headers["content-type"]?.includes("multipart")) {
+      console.log("📖 Detected multipart request - running multer first");
+      try {
+        await handleMediaUpload();
+        console.log(
+          "📖 After multer - Body:",
+          JSON.stringify(req.body, null, 2)
+        );
+        console.log(
+          "📖 After multer - File:",
+          req.file ? "Present" : "Missing"
+        );
+      } catch (uploadError) {
+        console.error("📖 Multer upload error:", uploadError);
+        return res.status(400).json({
+          success: false,
+          message: "File upload failed",
+          error: uploadError.message,
+        });
+      }
+    }
 
     // Parse body fields (handle both JSON and multipart string values)
     const parseField = (field) => {
@@ -594,20 +622,8 @@ router.post("/", authenticateJWT, requireAuth, async (req, res) => {
       }
       console.log("📖 Creating TEXT story (no file upload)");
     } else {
-      // MEDIA STORY (image/video/audio) - Handle file upload with multer
-      console.log(
-        `📖 Creating ${mediaType.toUpperCase()} story - processing file upload`
-      );
-
-      try {
-        await handleMediaUpload();
-      } catch (uploadError) {
-        return res.status(400).json({
-          success: false,
-          message: "File upload failed",
-          error: uploadError.message,
-        });
-      }
+      // MEDIA STORY (image/video/audio) - File should already be uploaded by multer
+      console.log(`📖 Creating ${mediaType.toUpperCase()} story`);
 
       // Verify file was uploaded
       if (!req.file) {
