@@ -198,7 +198,7 @@ commentSchema.statics.findByPost = function (postId, options = {}) {
   } = options;
 
   const query = {
-    postId: mongoose.Types.ObjectId(postId),
+    postId: new mongoose.Types.ObjectId(postId),
     isDeleted: false,
     moderationStatus: "approved",
   };
@@ -238,7 +238,7 @@ commentSchema.statics.findByPost = function (postId, options = {}) {
       $addFields: {
         isLiked: userId
           ? {
-              $in: [mongoose.Types.ObjectId(userId), "$likedBy"],
+              $in: [new mongoose.Types.ObjectId(userId), "$likedBy"],
             }
           : false,
       },
@@ -264,7 +264,7 @@ commentSchema.statics.findReplies = function (commentId, options = {}) {
   const { page = 1, limit = 10, userId = null } = options;
 
   const query = {
-    parentCommentId: mongoose.Types.ObjectId(commentId),
+    parentCommentId: new mongoose.Types.ObjectId(commentId),
     isDeleted: false,
     moderationStatus: "approved",
   };
@@ -296,7 +296,7 @@ commentSchema.statics.findReplies = function (commentId, options = {}) {
       $addFields: {
         isLiked: userId
           ? {
-              $in: [mongoose.Types.ObjectId(userId), "$likedBy"],
+              $in: [new mongoose.Types.ObjectId(userId), "$likedBy"],
             }
           : false,
       },
@@ -320,7 +320,7 @@ commentSchema.statics.findReplies = function (commentId, options = {}) {
  */
 commentSchema.statics.getCommentCount = function (postId) {
   return this.countDocuments({
-    postId: mongoose.Types.ObjectId(postId),
+    postId: new mongoose.Types.ObjectId(postId),
     isDeleted: false,
     moderationStatus: "approved",
   });
@@ -340,7 +340,7 @@ commentSchema.methods.softDelete = function (deletedBy = null) {
  * Like/Unlike a comment
  */
 commentSchema.methods.toggleLike = function (userId) {
-  const userObjectId = mongoose.Types.ObjectId(userId);
+  const userObjectId = new mongoose.Types.ObjectId(userId);
   const isLiked = this.likedBy.includes(userObjectId);
 
   if (isLiked) {
