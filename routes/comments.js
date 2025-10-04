@@ -100,7 +100,7 @@ router.get(
             }`.trim() ||
             "Unknown User";
           comment.avatar = comment.userId.photoURL || "";
-          
+
           // Remove sensitive user data
           delete comment.userId.profile;
           delete comment.userId.displayName;
@@ -114,9 +114,8 @@ router.get(
       // Get total count for pagination
       const totalComments = await Comment.countDocuments({
         postId,
-        isActive: true,
+        isDeleted: false,
         moderationStatus: "approved",
-        deletedAt: null,
         parentCommentId: null,
       });
 
