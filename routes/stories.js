@@ -306,9 +306,8 @@ router.get(
       const filter = {
         isActive: true,
         expiresAt: { $gt: new Date() },
-        userId: { $ne: req.user._id }, // Exclude current user's stories
         $or: [
-          // Public stories from anyone (except current user)
+          // Public stories from anyone (including current user)
           { privacy: "public" },
           // Friends stories
           {
