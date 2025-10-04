@@ -500,7 +500,13 @@ router.post(
       }
 
       // Toggle like
-      const isLiked = await comment.toggleLike(user._id);
+      await comment.toggleLike(user._id);
+      await comment.save();
+
+      // Check if currently liked
+      const isLiked = comment.likedBy.some(
+        (id) => id.toString() === user._id.toString()
+      );
 
       // Log like action
       AuditLog.create({
@@ -521,7 +527,7 @@ router.post(
         success: true,
         message: isLiked ? "Comment liked" : "Comment unliked",
         data: {
-          isLiked,
+          isLiked: isLiked,
           likes: comment.likes,
         },
       });
