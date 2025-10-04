@@ -44,13 +44,20 @@ const initializeSocket = (server) => {
           return next(new Error("User not found"));
         }
 
-        // Attach user data to socket
+        // Attach user data to socket (userId is primary identifier)
         socket.userId = user._id.toString();
         socket.firebaseUid = user.firebaseUid;
-        socket.username = user.username;
-        socket.displayName = user.displayName || user.username;
+        // Keep minimal display info for logging - app will fetch full user data via userId
+        socket.username =
+          user.profile?.username ||
+          user.displayName ||
+          user._id.toString().slice(-6);
+        socket.displayName =
+          user.displayName || user.profile?.username || "User";
 
-        console.log(`🔌 User ${socket.username} connected via Socket.IO (JWT)`);
+        console.log(
+          `🔌 User ${socket.userId} (${socket.username}) connected via Socket.IO (JWT)`
+        );
         return next();
       } catch (jwtError) {
         // If JWT fails, try Firebase token (legacy support)
@@ -63,14 +70,19 @@ const initializeSocket = (server) => {
             return next(new Error("User not found"));
           }
 
-          // Attach user data to socket
+          // Attach user data to socket (userId is primary identifier)
           socket.userId = user._id.toString();
           socket.firebaseUid = decodedToken.uid;
-          socket.username = user.username;
-          socket.displayName = user.displayName || user.username;
+          // Keep minimal display info for logging - app will fetch full user data via userId
+          socket.username =
+            user.profile?.username ||
+            user.displayName ||
+            user._id.toString().slice(-6);
+          socket.displayName =
+            user.displayName || user.profile?.username || "User";
 
           console.log(
-            `🔌 User ${socket.username} connected via Socket.IO (Firebase)`
+            `🔌 User ${socket.userId} (${socket.username}) connected via Socket.IO (Firebase)`
           );
           return next();
         } catch (firebaseError) {
@@ -89,7 +101,7 @@ const initializeSocket = (server) => {
 
   // Handle socket connections
   io.on("connection", (socket) => {
-    console.log(`✅ Socket connected: ${socket.id} (User: ${socket.username})`);
+    console.log(`✅ Socket connected: ${socket.id} (UserID: ${socket.userId})`);
 
     // Join user to their personal room for notifications
     socket.join(`user_${socket.userId}`);
@@ -107,7 +119,7 @@ const initializeSocket = (server) => {
         }
 
         socket.join(`chat_${chatId}`);
-        console.log(`📱 User ${socket.username} joined chat ${chatId}`);
+        console.log(`📱 UserID ${socket.userId} joined chat ${chatId}`);
 
         // Update user's last seen in chat
         await chat.updateLastSeen(socket.userId);
@@ -130,7 +142,7 @@ const initializeSocket = (server) => {
     socket.on("leave_chat", async (chatId) => {
       try {
         socket.leave(`chat_${chatId}`);
-        console.log(`📱 User ${socket.username} left chat ${chatId}`);
+        console.log(`📱 UserID ${socket.userId} left chat ${chatId}`);
 
         // Notify other members that user went offline
         socket.to(`chat_${chatId}`).emit("user_offline", {
@@ -264,7 +276,7 @@ const initializeSocket = (server) => {
     // Handle disconnection
     socket.on("disconnect", async (reason) => {
       console.log(
-        `❌ Socket disconnected: ${socket.id} (User: ${socket.username}) - Reason: ${reason}`
+        `❌ Socket disconnected: ${socket.id} (UserID: ${socket.userId}) - Reason: ${reason}`
       );
 
       try {
@@ -290,7 +302,7 @@ const initializeSocket = (server) => {
 
     // Handle errors
     socket.on("error", (error) => {
-      console.error(`Socket error for user ${socket.username}:`, error);
+      console.error(`Socket error for userID ${socket.userId}:`, error);
     });
   });
 
