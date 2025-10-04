@@ -207,7 +207,7 @@ router.post(
         const parentComment = await Comment.findById(parentCommentId);
         if (
           !parentComment ||
-          !parentComment.isActive ||
+          parentComment.isDeleted ||
           parentComment.deletedAt
         ) {
           return res.status(404).json({
@@ -321,7 +321,7 @@ router.put(
         "userId",
         "displayName photoURL profile.firstName profile.lastName profile.username"
       );
-      if (!comment || !comment.isActive || comment.deletedAt) {
+      if (!comment || comment.isDeleted || comment.deletedAt) {
         return res.status(404).json({
           success: false,
           message: "Comment not found",
@@ -415,7 +415,7 @@ router.delete(
 
       // Find comment
       const comment = await Comment.findById(commentId);
-      if (!comment || !comment.isActive || comment.deletedAt) {
+      if (!comment || comment.isDeleted || comment.deletedAt) {
         return res.status(404).json({
           success: false,
           message: "Comment not found",
@@ -492,7 +492,7 @@ router.post(
 
       // Find comment
       const comment = await Comment.findById(commentId);
-      if (!comment || !comment.isActive || comment.deletedAt) {
+      if (!comment || comment.isDeleted || comment.deletedAt) {
         return res.status(404).json({
           success: false,
           message: "Comment not found",
