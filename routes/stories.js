@@ -337,19 +337,26 @@ router.get(
             _id: "$userId",
             stories: { $push: "$$ROOT" },
             lastStoryTime: { $max: "$createdAt" },
+            // Check if ANY story in the group has not been viewed by current user
             hasUnviewedStories: {
-              $first: {
+              $sum: {
                 $cond: {
                   if: {
                     $not: {
                       $in: [req.user._id, { $ifNull: ["$viewedBy", []] }],
                     },
                   },
-                  then: true,
-                  else: false,
+                  then: 1,
+                  else: 0,
                 },
               },
             },
+          },
+        },
+        // Convert hasUnviewedStories count to boolean
+        {
+          $addFields: {
+            hasUnviewedStories: { $gt: ["$hasUnviewedStories", 0] },
           },
         },
         // Lookup user details
