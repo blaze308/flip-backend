@@ -34,23 +34,53 @@ const initializeSocket = (server) => {
         return next(new Error("Authentication token required"));
       }
 
-      // Verify Firebase token
-      const decodedToken = await admin.auth().verifyIdToken(token);
+      // Try JWT token first (our custom auth)
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Get user from database
-      const user = await User.findOne({ firebaseUid: decodedToken.uid });
-      if (!user) {
-        return next(new Error("User not found"));
+        // Get user from database using JWT user ID
+        const user = await User.findById(decoded.userId);
+        if (!user) {
+          return next(new Error("User not found"));
+        }
+
+        // Attach user data to socket
+        socket.userId = user._id.toString();
+        socket.firebaseUid = user.firebaseUid;
+        socket.username = user.username;
+        socket.displayName = user.displayName || user.username;
+
+        console.log(`🔌 User ${socket.username} connected via Socket.IO (JWT)`);
+        return next();
+      } catch (jwtError) {
+        // If JWT fails, try Firebase token (legacy support)
+        try {
+          const decodedToken = await admin.auth().verifyIdToken(token);
+
+          // Get user from database
+          const user = await User.findOne({ firebaseUid: decodedToken.uid });
+          if (!user) {
+            return next(new Error("User not found"));
+          }
+
+          // Attach user data to socket
+          socket.userId = user._id.toString();
+          socket.firebaseUid = decodedToken.uid;
+          socket.username = user.username;
+          socket.displayName = user.displayName || user.username;
+
+          console.log(
+            `🔌 User ${socket.username} connected via Socket.IO (Firebase)`
+          );
+          return next();
+        } catch (firebaseError) {
+          console.error(
+            "Socket authentication error (both JWT and Firebase failed):",
+            jwtError.message
+          );
+          return next(new Error("Authentication failed"));
+        }
       }
-
-      // Attach user data to socket
-      socket.userId = user._id.toString();
-      socket.firebaseUid = decodedToken.uid;
-      socket.username = user.username;
-      socket.displayName = user.displayName || user.username;
-
-      console.log(`🔌 User ${socket.username} connected via Socket.IO`);
-      next();
     } catch (error) {
       console.error("Socket authentication error:", error);
       next(new Error("Authentication failed"));
