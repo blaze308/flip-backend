@@ -9,14 +9,17 @@ const User = require("../models/User");
 const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const { body, validationResult, param, query } = require("express-validator");
 
-// Helper function to get username from user object
+// Helper function to get username from user object (prefer short username)
 const getUsernameFromUser = (user) => {
-  return (
-    user.profile?.username ||
-    user.displayName ||
-    user.email?.split("@")[0] ||
-    "user"
-  );
+  // Priority: profile.username > profile.firstName > email prefix > first word of displayName > "user"
+  if (user.profile?.username) return user.profile.username;
+  if (user.profile?.firstName) return user.profile.firstName;
+  if (user.email) return user.email.split("@")[0];
+  if (user.displayName) {
+    // Get first name from display name (e.g., "John Doe" -> "John")
+    return user.displayName.split(" ")[0];
+  }
+  return "user";
 };
 
 // Configure multer for file uploads
@@ -168,7 +171,7 @@ router.get(
       });
       console.log("📖 Active public stories:", activePublicStories);
 
-      // Get public stories only
+      // Get public stories only - Populate user details like posts do
       const storyGroups = await Story.aggregate([
         {
           $match: {
@@ -180,11 +183,62 @@ router.get(
         {
           $group: {
             _id: "$userId",
-            username: { $first: "$username" },
-            userAvatar: { $first: "$userAvatar" },
             stories: { $push: "$$ROOT" },
             lastStoryTime: { $max: "$createdAt" },
-            hasUnviewedStories: { $first: true }, // Changed from $literal to $first
+            hasUnviewedStories: { $first: true },
+          },
+        },
+        // Lookup user details
+        {
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "userDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Add formatted username and avatar
+        {
+          $addFields: {
+            username: {
+              $ifNull: [
+                "$userDetails.profile.username",
+                {
+                  $ifNull: [
+                    {
+                      $arrayElemAt: [
+                        { $split: ["$userDetails.email", "@"] },
+                        0,
+                      ],
+                    },
+                    {
+                      $arrayElemAt: [
+                        { $split: ["$userDetails.displayName", " "] },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+            userAvatar: {
+              $ifNull: [
+                "$userDetails.photoURL",
+                "$userDetails.profileImageUrl",
+              ],
+            },
+          },
+        },
+        // Remove userDetails to clean up response
+        {
+          $project: {
+            userDetails: 0,
           },
         },
         {
@@ -278,14 +332,12 @@ router.get(
         ],
       };
 
-      // Aggregate stories by user
+      // Aggregate stories by user - Populate user details like posts do
       const storyGroups = await Story.aggregate([
         { $match: filter },
         {
           $group: {
             _id: "$userId",
-            username: { $first: "$username" },
-            userAvatar: { $first: "$userAvatar" },
             stories: { $push: "$$ROOT" },
             lastStoryTime: { $max: "$createdAt" },
             hasUnviewedStories: {
@@ -301,6 +353,59 @@ router.get(
                 },
               },
             },
+          },
+        },
+        // Lookup user details
+        {
+          $lookup: {
+            from: "users",
+            localField: "_id",
+            foreignField: "_id",
+            as: "userDetails",
+          },
+        },
+        {
+          $unwind: {
+            path: "$userDetails",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        // Add formatted username and avatar
+        {
+          $addFields: {
+            username: {
+              $ifNull: [
+                "$userDetails.profile.username",
+                {
+                  $ifNull: [
+                    {
+                      $arrayElemAt: [
+                        { $split: ["$userDetails.email", "@"] },
+                        0,
+                      ],
+                    },
+                    {
+                      $arrayElemAt: [
+                        { $split: ["$userDetails.displayName", " "] },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+            userAvatar: {
+              $ifNull: [
+                "$userDetails.photoURL",
+                "$userDetails.profileImageUrl",
+              ],
+            },
+          },
+        },
+        // Remove userDetails to clean up response
+        {
+          $project: {
+            userDetails: 0,
           },
         },
         { $sort: { hasUnviewedStories: -1, lastStoryTime: -1 } },
@@ -533,15 +638,25 @@ router.post(
       console.log("  - Username (profile):", user.profile?.username);
       console.log("  - Display Name:", user.displayName);
       console.log("  - Email:", user.email);
+      console.log("  - PhotoURL:", user.photoURL);
+      console.log("  - ProfileImageUrl:", user.profileImageUrl);
+      console.log("  - Profile:", user.profile);
       console.log("  - Media Type:", mediaType);
       console.log("  - Text Content:", textContent);
       console.log("  - Text Style:", textStyle);
 
       // Prepare story data
+      const userAvatar =
+        user.photoURL ||
+        user.profile?.profilePicture ||
+        user.profileImageUrl ||
+        null;
+      console.log("  - Final userAvatar:", userAvatar);
+
       const storyData = {
         userId: user._id,
         username: getUsernameFromUser(user),
-        userAvatar: user.profileImageUrl,
+        userAvatar: userAvatar,
         mediaType,
         textContent: mediaType === "text" ? textContent : undefined,
         textStyle:
