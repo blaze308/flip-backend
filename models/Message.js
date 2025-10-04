@@ -174,7 +174,7 @@ const messageReferenceSchema = new Schema(
     },
     senderName: {
       type: String,
-      required: true,
+      required: false, // Not required - can fetch from senderId
     },
     content: {
       type: String,
@@ -219,7 +219,8 @@ const messageSchema = new Schema(
 
     senderName: {
       type: String,
-      required: true,
+      required: false, // Not required - can fetch from senderId
+      default: null,
     },
 
     senderAvatar: {

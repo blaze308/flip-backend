@@ -511,8 +511,13 @@ router.post(
         chatId,
         senderId: user._id,
         senderFirebaseUid: user.firebaseUid,
-        senderName: user.displayName || user.username,
-        senderAvatar: user.photoURL,
+        senderName:
+          user.displayName ||
+          user.profile?.username ||
+          user.email?.split("@")[0] ||
+          "User",
+        senderAvatar:
+          user.photoURL || user.profile?.profilePicture || user.profileImageUrl,
         type,
         content: content || null,
       };
