@@ -427,37 +427,26 @@ router.post(
   "/",
   authenticateJWT,
   requireAuth,
-  // Conditional multer middleware - only use it if Content-Type is multipart
-  (req, res, next) => {
-    const contentType = req.headers["content-type"] || "";
-    if (contentType.includes("multipart/form-data")) {
-      // Use multer for media uploads
-      upload.single("media")(req, res, next);
-    } else {
-      // Skip multer for JSON requests (text stories)
-      next();
-    }
-  },
   validateStoryCreation,
   async (req, res) => {
+    // Handle file upload for media stories ONLY
+    const handleMediaUpload = () => {
+      return new Promise((resolve, reject) => {
+        upload.single("media")(req, res, (err) => {
+          if (err) {
+            console.error("📖 Multer error:", err);
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+    };
+
     try {
-      console.log("📖 Story Creation Request Debug:");
+      console.log("📖 Story Creation Request:");
       console.log("  - Content-Type:", req.headers["content-type"]);
-      console.log("  - Body:", req.body);
-      console.log("  - File:", req.file);
-      console.log("  - Media Type from body:", req.body.mediaType);
-      console.log("  - Has file:", !!req.file);
-      console.log(
-        "  - File details:",
-        req.file
-          ? {
-              fieldname: req.file.fieldname,
-              originalname: req.file.originalname,
-              mimetype: req.file.mimetype,
-              size: req.file.size,
-            }
-          : "No file"
-      );
+      console.log("  - Media Type:", req.body.mediaType);
 
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -497,19 +486,39 @@ router.post(
       const customViewers = parseField(req.body.customViewers) || [];
       const metadata = parseField(req.body.metadata) || {};
 
-      // Validate required fields based on media type
-      if (mediaType === "text" && !textContent) {
-        return res.status(400).json({
-          success: false,
-          message: "Text content is required for text stories",
-        });
-      }
+      // Validate and handle based on media type
+      if (mediaType === "text") {
+        // TEXT STORY - No file upload needed
+        if (!textContent) {
+          return res.status(400).json({
+            success: false,
+            message: "Text content is required for text stories",
+          });
+        }
+        console.log("📖 Creating TEXT story (no file upload)");
+      } else {
+        // MEDIA STORY (image/video/audio) - Handle file upload with multer
+        console.log(`📖 Creating ${mediaType.toUpperCase()} story - processing file upload`);
+        
+        try {
+          await handleMediaUpload();
+        } catch (uploadError) {
+          return res.status(400).json({
+            success: false,
+            message: "File upload failed",
+            error: uploadError.message,
+          });
+        }
 
-      if (mediaType !== "text" && !req.file) {
-        return res.status(400).json({
-          success: false,
-          message: "Media file is required for non-text stories",
-        });
+        // Verify file was uploaded
+        if (!req.file) {
+          return res.status(400).json({
+            success: false,
+            message: `Media file is required for ${mediaType} stories`,
+          });
+        }
+        
+        console.log("📖 File uploaded successfully:", req.file.filename);
       }
 
       // Get user information (req.user is already the database user from requireAuth)
