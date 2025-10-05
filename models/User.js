@@ -169,6 +169,40 @@ const userSchema = new mongoose.Schema(
         state: String,
         city: String,
       },
+      website: {
+        type: String,
+        trim: true,
+        maxlength: [200, "Website URL cannot exceed 200 characters"],
+        validate: {
+          validator: function (url) {
+            if (!url) return true; // Allow empty
+            return /^https?:\/\/.+/.test(url);
+          },
+          message: "Please provide a valid website URL",
+        },
+      },
+      occupation: {
+        type: String,
+        trim: true,
+        maxlength: [100, "Occupation cannot exceed 100 characters"],
+      },
+      interests: [
+        {
+          type: String,
+          trim: true,
+        },
+      ],
+      coverPhotoURL: {
+        type: String,
+        trim: true,
+        validate: {
+          validator: function (url) {
+            if (!url) return true; // Allow empty
+            return /^https?:\/\/.+/.test(url);
+          },
+          message: "Please provide a valid cover photo URL",
+        },
+      },
       preferences: {
         language: {
           type: String,

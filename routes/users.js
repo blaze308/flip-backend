@@ -13,57 +13,52 @@ const router = express.Router();
  *
  * Get the complete profile data for the authenticated user
  */
-router.get(
-  "/profile",
-  authenticateJWT,
-  requireAuth,
-  async (req, res) => {
-    try {
-      const { user } = req;
+router.get("/profile", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const { user } = req;
 
-      // Update last active timestamp
-      user.lastActive = new Date();
-      await user.save();
+    // Update last active timestamp
+    user.lastActive = new Date();
+    await user.save();
 
-      res.json({
-        success: true,
-        message: "Profile retrieved successfully",
-        data: {
-          user: {
-            id: user._id,
-            firebaseUid: user.firebaseUid,
-            email: user.email,
-            displayName: user.displayName,
-            phoneNumber: user.phoneNumber,
-            photoURL: user.photoURL,
-            providers: user.providers,
-            emailVerified: user.emailVerified,
-            role: user.role,
-            isActive: user.isActive,
-            profile: user.profile,
-            subscription: user.subscription,
-            stats: user.stats,
-            createdAt: user.createdAt,
-            updatedAt: user.updatedAt,
-            lastLogin: user.lastLogin,
-            lastActive: user.lastActive,
-            loginCount: user.loginCount,
-          },
+    res.json({
+      success: true,
+      message: "Profile retrieved successfully",
+      data: {
+        user: {
+          id: user._id,
+          firebaseUid: user.firebaseUid,
+          email: user.email,
+          displayName: user.displayName,
+          phoneNumber: user.phoneNumber,
+          photoURL: user.photoURL,
+          providers: user.providers,
+          emailVerified: user.emailVerified,
+          role: user.role,
+          isActive: user.isActive,
+          profile: user.profile,
+          subscription: user.subscription,
+          stats: user.stats,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          lastLogin: user.lastLogin,
+          lastActive: user.lastActive,
+          loginCount: user.loginCount,
         },
-      });
-    } catch (error) {
-      console.error("Get profile error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to retrieve profile",
-        error:
-          process.env.NODE_ENV === "development"
-            ? error.message
-            : "Internal server error",
-      });
-    }
+      },
+    });
+  } catch (error) {
+    console.error("Get profile error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve profile",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
   }
-);
+});
 
 /**
  * PUT /users/profile
@@ -171,6 +166,32 @@ router.put(
       .optional()
       .isBoolean()
       .withMessage("Show phone preference must be boolean"),
+
+    body("photoURL")
+      .optional()
+      .isURL()
+      .withMessage("Photo URL must be a valid URL"),
+
+    body("profile.website")
+      .optional()
+      .isURL()
+      .withMessage("Website must be a valid URL"),
+
+    body("profile.occupation")
+      .optional()
+      .isLength({ max: 100 })
+      .withMessage("Occupation cannot exceed 100 characters")
+      .trim(),
+
+    body("profile.interests")
+      .optional()
+      .isArray()
+      .withMessage("Interests must be an array"),
+
+    body("profile.coverPhotoURL")
+      .optional()
+      .isURL()
+      .withMessage("Cover photo URL must be a valid URL"),
   ],
   async (req, res) => {
     try {
@@ -196,6 +217,11 @@ router.put(
         updatedFields.push("displayName");
       }
 
+      if (updateData.photoURL !== undefined) {
+        user.photoURL = updateData.photoURL;
+        updatedFields.push("photoURL");
+      }
+
       // Update profile fields
       if (updateData.profile) {
         // Initialize profile if it doesn't exist
@@ -210,6 +236,9 @@ router.put(
           "bio",
           "dateOfBirth",
           "gender",
+          "website",
+          "occupation",
+          "coverPhotoURL",
         ];
 
         profileFields.forEach((field) => {
@@ -218,6 +247,12 @@ router.put(
             updatedFields.push(`profile.${field}`);
           }
         });
+
+        // Update interests array
+        if (updateData.profile.interests !== undefined) {
+          user.profile.interests = updateData.profile.interests;
+          updatedFields.push("profile.interests");
+        }
 
         // Update location
         if (updateData.profile.location) {
@@ -467,40 +502,35 @@ router.delete(
  *
  * Get user's active sessions for security monitoring
  */
-router.get(
-  "/sessions",
-  authenticateJWT,
-  requireAuth,
-  async (req, res) => {
-    try {
-      const { user } = req;
+router.get("/sessions", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const { user } = req;
 
-      const sessions = await Session.findActiveSessions(user._id)
-        .sort({ startTime: -1 })
-        .limit(20)
-        .select("-__v");
+    const sessions = await Session.findActiveSessions(user._id)
+      .sort({ startTime: -1 })
+      .limit(20)
+      .select("-__v");
 
-      res.json({
-        success: true,
-        message: "Sessions retrieved successfully",
-        data: {
-          sessions,
-          totalActive: sessions.length,
-        },
-      });
-    } catch (error) {
-      console.error("Get sessions error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to retrieve sessions",
-        error:
-          process.env.NODE_ENV === "development"
-            ? error.message
-            : "Internal server error",
-      });
-    }
+    res.json({
+      success: true,
+      message: "Sessions retrieved successfully",
+      data: {
+        sessions,
+        totalActive: sessions.length,
+      },
+    });
+  } catch (error) {
+    console.error("Get sessions error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve sessions",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
   }
-);
+});
 
 /**
  * DELETE /users/sessions/:sessionId
@@ -568,40 +598,35 @@ router.delete(
  *
  * Get user's audit logs for security and activity monitoring
  */
-router.get(
-  "/audit-logs",
-  authenticateJWT,
-  requireAuth,
-  async (req, res) => {
-    try {
-      const { user } = req;
-      const { limit = 50, page = 1 } = req.query;
+router.get("/audit-logs", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const { user } = req;
+    const { limit = 50, page = 1 } = req.query;
 
-      const logs = await AuditLog.getUserLogs(user._id, parseInt(limit));
+    const logs = await AuditLog.getUserLogs(user._id, parseInt(limit));
 
-      res.json({
-        success: true,
-        message: "Audit logs retrieved successfully",
-        data: {
-          logs,
-          total: logs.length,
-          page: parseInt(page),
-          limit: parseInt(limit),
-        },
-      });
-    } catch (error) {
-      console.error("Get audit logs error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to retrieve audit logs",
-        error:
-          process.env.NODE_ENV === "development"
-            ? error.message
-            : "Internal server error",
-      });
-    }
+    res.json({
+      success: true,
+      message: "Audit logs retrieved successfully",
+      data: {
+        logs,
+        total: logs.length,
+        page: parseInt(page),
+        limit: parseInt(limit),
+      },
+    });
+  } catch (error) {
+    console.error("Get audit logs error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve audit logs",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
   }
-);
+});
 
 /**
  * POST /users/:userId/follow
@@ -773,58 +798,54 @@ router.put(
  *
  * Get list of users that the current user is following
  */
-router.get(
-  "/following",
-  authenticateJWT,
-  async (req, res) => {
-    try {
-      const { user } = req;
+router.get("/following", authenticateJWT, async (req, res) => {
+  try {
+    const { user } = req;
 
-      // Get the list of users that the current user is following
-      const followingUsers = await User.find({
-        _id: { $in: user.following },
-        isActive: true,
-        deletedAt: null,
-      })
-        .select(
-          "_id displayName photoURL username profile.firstName profile.lastName"
-        )
-        .lean();
+    // Get the list of users that the current user is following
+    const followingUsers = await User.find({
+      _id: { $in: user.following },
+      isActive: true,
+      deletedAt: null,
+    })
+      .select(
+        "_id displayName photoURL username profile.firstName profile.lastName"
+      )
+      .lean();
 
-      // Format the response
-      const formattedUsers = followingUsers.map((followingUser) => ({
-        id: followingUser._id,
-        displayName: followingUser.displayName,
-        username:
-          followingUser.username ||
-          `${followingUser.profile?.firstName || ""} ${
-            followingUser.profile?.lastName || ""
-          }`.trim() ||
-          followingUser.displayName,
-        photoURL: followingUser.photoURL,
-        avatar: followingUser.photoURL,
-      }));
+    // Format the response
+    const formattedUsers = followingUsers.map((followingUser) => ({
+      id: followingUser._id,
+      displayName: followingUser.displayName,
+      username:
+        followingUser.username ||
+        `${followingUser.profile?.firstName || ""} ${
+          followingUser.profile?.lastName || ""
+        }`.trim() ||
+        followingUser.displayName,
+      photoURL: followingUser.photoURL,
+      avatar: followingUser.photoURL,
+    }));
 
-      res.json({
-        success: true,
-        message: "Following users retrieved successfully",
-        data: {
-          users: formattedUsers,
-          count: formattedUsers.length,
-        },
-      });
-    } catch (error) {
-      console.error("Get following users error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to get following users",
-        error:
-          process.env.NODE_ENV === "development"
-            ? error.message
-            : "Internal server error",
-      });
-    }
+    res.json({
+      success: true,
+      message: "Following users retrieved successfully",
+      data: {
+        users: formattedUsers,
+        count: formattedUsers.length,
+      },
+    });
+  } catch (error) {
+    console.error("Get following users error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get following users",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
   }
-);
+});
 
 module.exports = router;

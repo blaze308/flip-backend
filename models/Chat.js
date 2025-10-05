@@ -296,14 +296,7 @@ chatSchema.methods.canPerformAction = function (userId, action) {
 };
 
 // Add member to chat
-chatSchema.methods.addMember = function (
-  userId,
-  firebaseUid,
-  username,
-  displayName,
-  avatar = null,
-  role = "member"
-) {
+chatSchema.methods.addMember = function (userId, role = "member") {
   // Check if user is already a member
   const existingMember = this.members.find(
     (member) => member.userId.toString() === userId.toString()
@@ -318,13 +311,9 @@ chatSchema.methods.addMember = function (
     return this.save();
   }
 
-  // Add new member
+  // Add new member - only userId and role needed, rest populated from User model
   this.members.push({
     userId,
-    firebaseUid,
-    username,
-    displayName,
-    avatar,
     role,
     joinedAt: new Date(),
     lastSeenAt: new Date(),
@@ -423,29 +412,21 @@ chatSchema.statics.findDirectChat = function (userId1, userId2) {
 
 // Create direct chat between two users
 chatSchema.statics.createDirectChat = function (
-  user1,
-  user2,
+  userId1,
+  userId2,
   createdBy = null
 ) {
   return this.create({
     type: "direct",
-    participants: [user1.userId, user2.userId],
-    createdBy: createdBy || user1.userId,
+    participants: [userId1, userId2],
+    createdBy: createdBy || userId1,
     members: [
       {
-        userId: user1.userId,
-        firebaseUid: user1.firebaseUid,
-        username: user1.username,
-        displayName: user1.displayName,
-        avatar: user1.avatar,
+        userId: userId1,
         role: "member",
       },
       {
-        userId: user2.userId,
-        firebaseUid: user2.firebaseUid,
-        username: user2.username,
-        displayName: user2.displayName,
-        avatar: user2.avatar,
+        userId: userId2,
         role: "member",
       },
     ],
