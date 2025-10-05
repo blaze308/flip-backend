@@ -208,6 +208,56 @@ router.put(
       const { user } = req;
       const updateData = req.body;
 
+      // Check if this is initial profile completion (user has no bio and no interests)
+      const isInitialProfileCompletion =
+        (!user.profile?.bio || user.profile.bio.trim() === "") &&
+        (!user.profile?.interests || user.profile.interests.length === 0);
+
+      // If this is initial profile completion, photoURL is required
+      if (isInitialProfileCompletion) {
+        // Check if user already has a photoURL or if one is being provided
+        if (!user.photoURL && !updateData.photoURL) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Profile picture is required for initial profile completion",
+            code: "PHOTO_REQUIRED",
+          });
+        }
+
+        // Validate required fields for initial profile completion
+        if (!updateData.profile?.bio || updateData.profile.bio.trim() === "") {
+          return res.status(400).json({
+            success: false,
+            message: "Bio is required for initial profile completion",
+            code: "BIO_REQUIRED",
+          });
+        }
+
+        if (
+          !updateData.profile?.interests ||
+          updateData.profile.interests.length < 3
+        ) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "At least 3 interests are required for initial profile completion",
+            code: "INTERESTS_REQUIRED",
+          });
+        }
+
+        if (
+          !updateData.profile?.location?.city ||
+          updateData.profile.location.city.trim() === ""
+        ) {
+          return res.status(400).json({
+            success: false,
+            message: "Location is required for initial profile completion",
+            code: "LOCATION_REQUIRED",
+          });
+        }
+      }
+
       // Track what fields are being updated for audit log
       const updatedFields = [];
 

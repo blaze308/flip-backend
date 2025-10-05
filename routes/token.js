@@ -99,43 +99,18 @@ router.post(
 
         // User doesn't exist in DB
         // If this is a login attempt (not signup), it means:
-        // 1. User exists in Firebase but not in DB (orphaned Firebase user)
-        // 2. This is likely from a failed previous signup
-        // Solution: Delete the orphaned Firebase user and ask them to sign up again
+        // 1. User exists in Firebase but not in DB (incomplete signup)
+        // 2. Token exchange failed during their previous signup attempt
+        // Solution: Create them in DB now and mark as new user (send to complete profile)
         if (!isSignup) {
           console.log(
-            `⚠️ Orphaned Firebase user detected: ${firebaseUser.uid}. Deleting from Firebase...`
+            `⚠️ Incomplete signup detected: ${firebaseUser.uid}. Creating user in DB...`
           );
-
-          // Delete the orphaned Firebase user
-          const deleteResult = await deleteFirebaseUser(firebaseUser.uid);
-
-          if (deleteResult.success) {
-            console.log(
-              `✅ Orphaned Firebase user deleted: ${firebaseUser.uid}`
-            );
-            return res.status(404).json({
-              success: false,
-              message:
-                "Your account was incomplete. Please sign up again to create a new account.",
-              code: "ORPHANED_USER_DELETED",
-              isNewUser: true,
-              wasDeleted: true, // Flag to let frontend know user was deleted
-            });
-          } else {
-            console.error(
-              `❌ Failed to delete orphaned Firebase user: ${firebaseUser.uid}`
-            );
-            return res.status(500).json({
-              success: false,
-              message: "Account sync error. Please contact support.",
-              code: "SYNC_ERROR",
-            });
-          }
+          isNewUser = true; // Mark as new user so they go to complete profile
+        } else {
+          // This is a signup attempt - create new user
+          isNewUser = true;
         }
-
-        // This is a signup attempt - create new user
-        isNewUser = true;
 
         // Determine username based on signup method
         const provider = firebaseUser.firebase?.sign_in_provider || "unknown";
