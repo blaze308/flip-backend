@@ -74,17 +74,40 @@ router.post(
       let isNewUser = false;
 
       if (!user) {
-        // If this is a login attempt (not signup), reject it
+        // If this is a login attempt (not signup), check if user exists in Firebase
+        // If they exist in Firebase but not in DB, it means token exchange failed previously
+        // In this case, we should create them in DB instead of rejecting
         if (!isSignup) {
-          return res.status(404).json({
-            success: false,
-            message: "No account found. Please sign up first.",
-            code: "USER_NOT_FOUND",
-            isNewUser: true, // Let frontend know this is a new user
-          });
+          // Check if this is a retry of a failed signup (user exists in Firebase but not DB)
+          // We'll create the user anyway to fix the inconsistency
+          console.log(
+            `⚠️ User exists in Firebase but not in DB: ${firebaseUser.uid}. Creating user...`
+          );
         }
 
-        // Create new user (only for signup)
+        // Before creating, check if a user with this email already exists
+        // (in case of Firebase/DB inconsistency with different Firebase UID)
+        if (firebaseUser.email) {
+          const existingEmailUser = await User.findOne({
+            email: firebaseUser.email,
+          });
+          if (existingEmailUser) {
+            // User exists with same email but different Firebase UID
+            // This shouldn't happen normally, but handle it gracefully
+            console.log(
+              `⚠️ Email ${firebaseUser.email} already exists with different Firebase UID`
+            );
+            return res.status(409).json({
+              success: false,
+              message:
+                "An account with this email already exists. Please log in instead.",
+              code: "EMAIL_ALREADY_EXISTS",
+              isNewUser: false,
+            });
+          }
+        }
+
+        // Create new user (for signup OR to fix Firebase/DB inconsistency)
         isNewUser = true;
 
         // Determine username based on signup method
@@ -140,6 +163,7 @@ router.post(
           `New user created: ${user.firebaseUid} with username: ${finalUsername}`
         );
       } else {
+        // User exists in DB
         // If this is a signup attempt but user already exists, reject it
         if (isSignup) {
           return res.status(409).json({
@@ -150,7 +174,7 @@ router.post(
           });
         }
 
-        // Update existing user
+        // Update existing user (login)
         user.lastLogin = new Date();
         user.emailVerified = firebaseUser.email_verified || user.emailVerified;
 
