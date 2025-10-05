@@ -406,7 +406,6 @@ const messageSchema = new Schema(
     expiresAt: {
       type: Date,
       default: null,
-      index: true,
     },
 
     // Message Analytics
