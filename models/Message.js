@@ -406,6 +406,7 @@ const messageSchema = new Schema(
     expiresAt: {
       type: Date,
       default: null,
+      index: false, // Disable auto-index; we create it manually below
     },
 
     // Message Analytics
@@ -439,6 +440,10 @@ messageSchema.index({ type: 1, createdAt: -1 });
 messageSchema.index({ status: 1, createdAt: -1 });
 messageSchema.index({ threadId: 1, createdAt: 1 });
 messageSchema.index({ isDeleted: 1, createdAt: -1 });
+
+// TTL index for auto-expiring messages (expires documents where expiresAt is set)
+// Note: This doesn't auto-delete, just makes queries on expiresAt faster
+messageSchema.index({ expiresAt: 1 }, { sparse: true });
 
 // Compound indexes for common queries
 messageSchema.index({ chatId: 1, isDeleted: 1, createdAt: -1 });

@@ -50,6 +50,10 @@ router.post(
       .optional()
       .isBoolean()
       .withMessage("Remember me must be a boolean"),
+    body("isSignup")
+      .optional()
+      .isBoolean()
+      .withMessage("isSignup must be a boolean"),
   ],
   async (req, res) => {
     try {
@@ -63,14 +67,24 @@ router.post(
       }
 
       const { firebaseUser } = req;
-      const { deviceInfo, rememberMe = false } = req.body;
+      const { deviceInfo, rememberMe = false, isSignup = false } = req.body;
 
       // Find or create user in our database
       let user = await User.findOne({ firebaseUid: firebaseUser.uid });
       let isNewUser = false;
 
       if (!user) {
-        // Create new user
+        // If this is a login attempt (not signup), reject it
+        if (!isSignup) {
+          return res.status(404).json({
+            success: false,
+            message: "No account found. Please sign up first.",
+            code: "USER_NOT_FOUND",
+            isNewUser: true, // Let frontend know this is a new user
+          });
+        }
+
+        // Create new user (only for signup)
         isNewUser = true;
 
         // Determine username based on signup method
@@ -137,6 +151,16 @@ router.post(
         }
 
         await user.save();
+      } else {
+        // If this is a signup attempt but user already exists, reject it
+        if (isSignup) {
+          return res.status(409).json({
+            success: false,
+            message: "Account already exists. Please log in instead.",
+            code: "USER_ALREADY_EXISTS",
+            isNewUser: false,
+          });
+        }
       }
 
       // Update device information if provided
