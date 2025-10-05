@@ -59,7 +59,7 @@ router.get(
       const posts = await query
         .populate(
           "userId",
-          "displayName photoURL profile.firstName profile.lastName"
+          "displayName photoURL profile.username profile.firstName profile.lastName"
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -254,7 +254,7 @@ router.get(
       const posts = await query
         .populate(
           "userId",
-          "displayName photoURL profile.firstName profile.lastName"
+          "displayName photoURL profile.username profile.firstName profile.lastName"
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -402,7 +402,7 @@ router.get(
       const posts = await query
         .populate(
           "userId",
-          "displayName photoURL profile.firstName profile.lastName"
+          "displayName photoURL profile.username profile.firstName profile.lastName"
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -683,7 +683,7 @@ router.get("/:postId", authenticateJWT, requireAuth, async (req, res) => {
       deletedAt: null,
     }).populate(
       "userId",
-      "displayName photoURL profile.firstName profile.lastName"
+      "displayName photoURL profile.username profile.firstName profile.lastName"
     );
 
     if (!post) {

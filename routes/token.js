@@ -17,11 +17,9 @@ if (!JWT_SECRET) {
   console.error("Please set JWT_SECRET in your environment variables.");
   process.exit(1);
 }
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d"; // Default 7 days
-const JWT_REMEMBER_EXPIRES_IN = process.env.JWT_REMEMBER_EXPIRES_IN || "90d"; // 90 days for remember me
-const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || "30d"; // Default 30 days
-const REFRESH_TOKEN_REMEMBER_EXPIRES_IN =
-  process.env.REFRESH_TOKEN_REMEMBER_EXPIRES_IN || "365d"; // 1 year for remember me
+// Token expiry configuration - Users stay logged in for extended periods (like Instagram/TikTok)
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d"; // 7 days for access token
+const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || "90d"; // 90 days for refresh token (always, no remember me needed)
 
 /**
  * POST /token/exchange
@@ -46,10 +44,6 @@ router.post(
       .optional()
       .isString()
       .withMessage("Device ID must be a string"),
-    body("rememberMe")
-      .optional()
-      .isBoolean()
-      .withMessage("Remember me must be a boolean"),
     body("isSignup")
       .optional()
       .isBoolean()
@@ -67,7 +61,7 @@ router.post(
       }
 
       const { firebaseUser } = req;
-      const { deviceInfo, rememberMe = false, isSignup = false } = req.body;
+      const { deviceInfo, isSignup = false } = req.body;
 
       // Find or create user in our database
       let user = await User.findOne({ firebaseUid: firebaseUser.uid });
@@ -218,18 +212,11 @@ router.post(
         email: user.email,
         role: user.role,
         isActive: user.isActive,
-        rememberMe: rememberMe,
       };
 
-      const accessTokenExpiresIn = rememberMe
-        ? JWT_REMEMBER_EXPIRES_IN
-        : JWT_EXPIRES_IN;
-      const refreshTokenExpiresIn = rememberMe
-        ? REFRESH_TOKEN_REMEMBER_EXPIRES_IN
-        : REFRESH_TOKEN_EXPIRES_IN;
-
+      // Users stay logged in for extended periods (no remember me needed)
       const accessToken = jwt.sign(tokenPayload, JWT_SECRET, {
-        expiresIn: accessTokenExpiresIn,
+        expiresIn: JWT_EXPIRES_IN, // 7 days
         issuer: "ancientflip-backend",
         audience: "ancientflip-app",
       });
@@ -238,11 +225,10 @@ router.post(
         {
           userId: user._id.toString(),
           tokenType: "refresh",
-          rememberMe: rememberMe,
         },
         JWT_SECRET,
         {
-          expiresIn: refreshTokenExpiresIn,
+          expiresIn: REFRESH_TOKEN_EXPIRES_IN, // 90 days
           issuer: "ancientflip-backend",
           audience: "ancientflip-app",
         }
@@ -260,14 +246,13 @@ router.post(
         startTime: new Date(),
         accessToken: accessToken.substring(0, 20) + "...", // Store partial token for tracking
         refreshToken: refreshToken.substring(0, 20) + "...",
-        rememberMe: rememberMe,
       });
 
       await session.save();
 
-      // Calculate token expiration times based on Remember Me
-      const accessTokenDays = rememberMe ? 90 : 7; // 90 days for remember me, 7 days normal
-      const refreshTokenDays = rememberMe ? 365 : 30; // 1 year for remember me, 30 days normal
+      // Calculate token expiration times (7 days access, 90 days refresh)
+      const accessTokenDays = 7;
+      const refreshTokenDays = 90;
 
       const accessTokenExpiresAt = new Date(
         Date.now() + accessTokenDays * 24 * 60 * 60 * 1000
