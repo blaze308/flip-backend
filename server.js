@@ -38,6 +38,7 @@ const uploadRoutes = require("./routes/upload");
 const storyRoutes = require("./routes/stories");
 const chatRoutes = require("./routes/chats");
 const callRoutes = require("./routes/calls");
+const deepLinkRoutes = require("./routes/deeplinks");
 
 // Initialize Express app
 const app = express();
@@ -144,6 +145,9 @@ app.get("/", (req, res) => {
     },
   });
 });
+
+// Deep link routes (public, no auth required) - must be before API routes
+app.use("/", deepLinkRoutes);
 
 // API Routes with specific rate limiting
 app.use("/api/auth", authLimiter, authRoutes);
