@@ -894,12 +894,15 @@ router.post(
       // Get user info (req.user is already the database user)
       const user = req.user;
 
-      // Add viewer
-      await story.addViewer(
-        user._id,
-        getUsernameFromUser(user),
-        user.profileImageUrl
-      );
+      // Don't count views from the story owner
+      if (story.userId.toString() !== user._id.toString()) {
+        // Add viewer
+        await story.addViewer(
+          user._id,
+          getUsernameFromUser(user),
+          user.profileImageUrl
+        );
+      }
 
       res.json({
         success: true,
