@@ -72,6 +72,39 @@ router.post(
       if (!user) {
         // Create new user
         isNewUser = true;
+
+        // Determine username based on signup method
+        const provider = firebaseUser.firebase?.sign_in_provider || "unknown";
+        let username;
+
+        if (provider === "google.com" || provider === "apple.com") {
+          // OAuth users: use displayName (remove spaces, make lowercase)
+          const displayName = firebaseUser.name || firebaseUser.display_name;
+          username = displayName
+            ? displayName.replace(/\s+/g, "_").toLowerCase().substring(0, 20)
+            : firebaseUser.email?.split("@")[0] || `user_${Date.now()}`;
+        } else if (firebaseUser.email) {
+          // Email users: use email username part (frontend will have sent displayName as username)
+          username =
+            firebaseUser.name ||
+            firebaseUser.display_name ||
+            firebaseUser.email.split("@")[0];
+        } else {
+          // Phone users: should have username in displayName from frontend
+          username =
+            firebaseUser.name ||
+            firebaseUser.display_name ||
+            `user${Date.now()}${Math.random().toString(36).substr(2, 5)}`;
+        }
+
+        // Ensure username is unique
+        let finalUsername = username;
+        let counter = 1;
+        while (await User.findOne({ "profile.username": finalUsername })) {
+          finalUsername = `${username}${counter}`;
+          counter++;
+        }
+
         user = new User({
           firebaseUid: firebaseUser.uid,
           email: firebaseUser.email,
@@ -79,9 +112,9 @@ router.post(
           phoneNumber: firebaseUser.phone_number,
           photoURL: firebaseUser.picture,
           emailVerified: firebaseUser.email_verified || false,
-          providers: [firebaseUser.firebase?.sign_in_provider || "unknown"],
+          providers: [provider],
           profile: {
-            username: firebaseUser.email?.split("@")[0] || `user_${Date.now()}`,
+            username: finalUsername,
             bio: "",
             isPrivate: false,
           },
@@ -89,7 +122,9 @@ router.post(
         });
 
         await user.save();
-        console.log(`New user created: ${user.firebaseUid}`);
+        console.log(
+          `New user created: ${user.firebaseUid} with username: ${finalUsername}`
+        );
       } else {
         // Update existing user
         user.lastLogin = new Date();

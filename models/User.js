@@ -122,14 +122,13 @@ const userSchema = new mongoose.Schema(
     profile: {
       username: {
         type: String,
+        required: [true, "Username is required"],
         trim: true,
         unique: true,
-        sparse: true, // Allow null values but enforce uniqueness when present
         minlength: [3, "Username must be at least 3 characters"],
         maxlength: [30, "Username cannot exceed 30 characters"],
         validate: {
           validator: function (username) {
-            if (!username) return true; // Allow empty
             return /^[a-zA-Z0-9_]+$/.test(username); // Only alphanumeric and underscore
           },
           message:
