@@ -4,7 +4,7 @@ const { body, validationResult } = require("express-validator");
 const User = require("../models/User");
 const Session = require("../models/Session");
 const { authenticateToken } = require("../middleware/auth");
-const { getFirebaseUser } = require("../config/firebase");
+const { getFirebaseUser, deleteFirebaseUser } = require("../config/firebase");
 
 const router = express.Router();
 
@@ -74,28 +74,18 @@ router.post(
       let isNewUser = false;
 
       if (!user) {
-        // If this is a login attempt (not signup), check if user exists in Firebase
-        // If they exist in Firebase but not in DB, it means token exchange failed previously
-        // In this case, we should create them in DB instead of rejecting
-        if (!isSignup) {
-          // Check if this is a retry of a failed signup (user exists in Firebase but not DB)
-          // We'll create the user anyway to fix the inconsistency
-          console.log(
-            `⚠️ User exists in Firebase but not in DB: ${firebaseUser.uid}. Creating user...`
-          );
-        }
-
-        // Before creating, check if a user with this email already exists
-        // (in case of Firebase/DB inconsistency with different Firebase UID)
+        // Check if a user with this email already exists in DB
+        // (This handles the case where Firebase user exists but DB user doesn't)
         if (firebaseUser.email) {
           const existingEmailUser = await User.findOne({
             email: firebaseUser.email,
           });
+
           if (existingEmailUser) {
-            // User exists with same email but different Firebase UID
-            // This shouldn't happen normally, but handle it gracefully
+            // Email exists in DB but with different Firebase UID
+            // This is a critical inconsistency - reject it
             console.log(
-              `⚠️ Email ${firebaseUser.email} already exists with different Firebase UID`
+              `⚠️ Email ${firebaseUser.email} exists in DB with different Firebase UID`
             );
             return res.status(409).json({
               success: false,
@@ -107,7 +97,44 @@ router.post(
           }
         }
 
-        // Create new user (for signup OR to fix Firebase/DB inconsistency)
+        // User doesn't exist in DB
+        // If this is a login attempt (not signup), it means:
+        // 1. User exists in Firebase but not in DB (orphaned Firebase user)
+        // 2. This is likely from a failed previous signup
+        // Solution: Delete the orphaned Firebase user and ask them to sign up again
+        if (!isSignup) {
+          console.log(
+            `⚠️ Orphaned Firebase user detected: ${firebaseUser.uid}. Deleting from Firebase...`
+          );
+
+          // Delete the orphaned Firebase user
+          const deleteResult = await deleteFirebaseUser(firebaseUser.uid);
+
+          if (deleteResult.success) {
+            console.log(
+              `✅ Orphaned Firebase user deleted: ${firebaseUser.uid}`
+            );
+            return res.status(404).json({
+              success: false,
+              message:
+                "Your account was incomplete. Please sign up again to create a new account.",
+              code: "ORPHANED_USER_DELETED",
+              isNewUser: true,
+              wasDeleted: true, // Flag to let frontend know user was deleted
+            });
+          } else {
+            console.error(
+              `❌ Failed to delete orphaned Firebase user: ${firebaseUser.uid}`
+            );
+            return res.status(500).json({
+              success: false,
+              message: "Account sync error. Please contact support.",
+              code: "SYNC_ERROR",
+            });
+          }
+        }
+
+        // This is a signup attempt - create new user
         isNewUser = true;
 
         // Determine username based on signup method
