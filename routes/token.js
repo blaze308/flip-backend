@@ -140,6 +140,16 @@ router.post(
           `New user created: ${user.firebaseUid} with username: ${finalUsername}`
         );
       } else {
+        // If this is a signup attempt but user already exists, reject it
+        if (isSignup) {
+          return res.status(409).json({
+            success: false,
+            message: "Account already exists. Please log in instead.",
+            code: "USER_ALREADY_EXISTS",
+            isNewUser: false,
+          });
+        }
+
         // Update existing user
         user.lastLogin = new Date();
         user.emailVerified = firebaseUser.email_verified || user.emailVerified;
@@ -151,16 +161,6 @@ router.post(
         }
 
         await user.save();
-      } else {
-        // If this is a signup attempt but user already exists, reject it
-        if (isSignup) {
-          return res.status(409).json({
-            success: false,
-            message: "Account already exists. Please log in instead.",
-            code: "USER_ALREADY_EXISTS",
-            isNewUser: false,
-          });
-        }
       }
 
       // Update device information if provided
