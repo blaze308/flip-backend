@@ -438,7 +438,6 @@ messageSchema.index({ senderId: 1, createdAt: -1 });
 messageSchema.index({ type: 1, createdAt: -1 });
 messageSchema.index({ status: 1, createdAt: -1 });
 messageSchema.index({ threadId: 1, createdAt: 1 });
-messageSchema.index({ expiresAt: 1 });
 messageSchema.index({ isDeleted: 1, createdAt: -1 });
 
 // Compound indexes for common queries
