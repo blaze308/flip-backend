@@ -12,11 +12,11 @@ const router = express.Router();
  * GET /comments/post/:postId
  *
  * Get comments for a specific post
+ * Public endpoint - authentication optional
  */
 router.get(
   "/post/:postId",
-  authenticateJWT,
-  requireAuth,
+  authenticateJWT, // Optional authentication - sets req.user if token present
   [
     param("postId").isMongoId().withMessage("Invalid post ID"),
     query("page")
@@ -48,14 +48,14 @@ router.get(
       }
 
       const { postId } = req.params;
-      const { user } = req;
+      const { user } = req; // May be null for guest users
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 20;
       const sortBy = req.query.sortBy || "createdAt";
       const sortOrder =
         req.query.sortOrder === "asc" || req.query.sortOrder === "1" ? 1 : -1;
 
-      // Check if post exists and user can view it
+      // Check if post exists
       const post = await Post.findById(postId).populate("userId");
       if (!post || !post.isActive || post.deletedAt) {
         return res.status(404).json({
@@ -65,12 +65,14 @@ router.get(
       }
 
       // Check if user can view the post (public or following)
-      const canViewPost =
-        post.isPublic ||
-        post.userId._id.toString() === user._id.toString() ||
-        user.following
-          .map((id) => id.toString())
-          .includes(post.userId._id.toString());
+      // Guests can only view public posts
+      const canViewPost = user
+        ? post.isPublic ||
+          post.userId._id.toString() === user._id.toString() ||
+          user.following
+            .map((id) => id.toString())
+            .includes(post.userId._id.toString())
+        : post.isPublic;
 
       if (!canViewPost) {
         return res.status(403).json({
@@ -85,7 +87,7 @@ router.get(
         limit,
         sortBy,
         sortOrder,
-        userId: user._id.toString(), // Pass userId for isLiked calculation
+        userId: user ? user._id.toString() : null, // Pass userId for isLiked calculation (null for guests)
       });
 
       // Format comments
@@ -546,11 +548,11 @@ router.post(
  * GET /comments/:commentId/replies
  *
  * Get replies for a comment
+ * Public endpoint - authentication optional
  */
 router.get(
   "/:commentId/replies",
-  authenticateJWT,
-  requireAuth,
+  authenticateJWT, // Optional authentication - sets req.user if token present
   [
     param("commentId").isMongoId().withMessage("Invalid comment ID"),
     query("page")
@@ -574,7 +576,7 @@ router.get(
       }
 
       const { commentId } = req.params;
-      const { user } = req;
+      const { user } = req; // May be null for guest users
       const page = parseInt(req.query.page) || 1;
       const limit = parseInt(req.query.limit) || 10;
 
@@ -594,10 +596,10 @@ router.get(
       // Get replies
       const replies = await Comment.findReplies(commentId, { page, limit });
 
-      // Add isLiked field for current user
+      // Add isLiked field for current user (false for guests)
       const repliesWithLikeStatus = replies.map((reply) => {
         const replyObj = reply.toObject();
-        replyObj.isLiked = reply.isLikedBy(user._id);
+        replyObj.isLiked = user ? reply.isLikedBy(user._id) : false;
 
         // Format user data
         if (replyObj.userId) {

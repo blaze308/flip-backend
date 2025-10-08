@@ -911,4 +911,88 @@ router.delete(
   }
 );
 
+/**
+ * @route   DELETE /api/chats/:chatId/messages/:messageId
+ * @desc    Delete a message
+ * @access  Private
+ */
+router.delete(
+  "/:chatId/messages/:messageId",
+  authenticateJWT,
+  requireAuth,
+  [
+    param("chatId").isMongoId().withMessage("Invalid chat ID"),
+    param("messageId").isMongoId().withMessage("Invalid message ID"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const { user } = req;
+      const { chatId, messageId } = req.params;
+
+      // Check if user is a member of this chat
+      const chat = await Chat.findById(chatId);
+      if (!chat || !chat.isMember(user._id)) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not a member of this chat",
+        });
+      }
+
+      // Find the message
+      const message = await Message.findOne({
+        _id: messageId,
+        chatId,
+      });
+
+      if (!message) {
+        return res.status(404).json({
+          success: false,
+          message: "Message not found",
+        });
+      }
+
+      // Check if user owns the message
+      if (message.senderId.toString() !== user._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "You can only delete your own messages",
+        });
+      }
+
+      // Soft delete the message
+      message.isDeleted = true;
+      message.deletedAt = new Date();
+      message.deletedFor = [user._id.toString()];
+      await message.save();
+
+      // Emit socket event for message deletion
+      emitMessageUpdate(messageId, chatId, "deleted", {
+        userId: user._id,
+        deletedAt: message.deletedAt,
+      });
+
+      res.json({
+        success: true,
+        message: "Message deleted successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete message",
+        error: error.message,
+      });
+    }
+  }
+);
+
 module.exports = router;
