@@ -300,6 +300,95 @@ const initializeSocket = (server) => {
       }
     });
 
+    // WebRTC Signaling Events
+    // Handle WebRTC offer
+    socket.on("webrtc:offer", (data) => {
+      console.log(
+        `📞 WebRTC: Offer from ${socket.userId} for call ${data.callId}`
+      );
+      // Forward offer to other participants in the room
+      socket.to(`call_${data.roomId}`).emit("webrtc:offer", {
+        ...data,
+        senderId: socket.userId,
+        senderName: socket.displayName,
+      });
+    });
+
+    // Handle WebRTC answer
+    socket.on("webrtc:answer", (data) => {
+      console.log(
+        `📞 WebRTC: Answer from ${socket.userId} for call ${data.callId}`
+      );
+      // Forward answer to other participants in the room
+      socket.to(`call_${data.roomId}`).emit("webrtc:answer", {
+        ...data,
+        senderId: socket.userId,
+        senderName: socket.displayName,
+      });
+    });
+
+    // Handle ICE candidates
+    socket.on("webrtc:ice-candidate", (data) => {
+      console.log(`📞 WebRTC: ICE candidate from ${socket.userId}`);
+      // Forward ICE candidate to other participants in the room
+      socket.to(`call_${data.roomId}`).emit("webrtc:ice-candidate", {
+        ...data,
+        senderId: socket.userId,
+      });
+    });
+
+    // Handle joining a call room
+    socket.on("webrtc:join-room", (data) => {
+      const { roomId } = data;
+      socket.join(`call_${roomId}`);
+      console.log(
+        `📞 WebRTC: User ${socket.userId} joined call room ${roomId}`
+      );
+
+      // Notify other participants
+      socket.to(`call_${roomId}`).emit("webrtc:user-joined", {
+        userId: socket.userId,
+        userName: socket.displayName,
+      });
+    });
+
+    // Handle leaving a call room
+    socket.on("webrtc:leave-room", (data) => {
+      const { roomId } = data;
+      socket.leave(`call_${roomId}`);
+      console.log(`📞 WebRTC: User ${socket.userId} left call room ${roomId}`);
+
+      // Notify other participants
+      socket.to(`call_${roomId}`).emit("webrtc:user-left", {
+        userId: socket.userId,
+        userName: socket.displayName,
+      });
+    });
+
+    // Handle call end
+    socket.on("webrtc:end-call", (data) => {
+      const { roomId, callId } = data;
+      console.log(`📞 WebRTC: User ${socket.userId} ended call ${callId}`);
+
+      // Notify all participants
+      io.to(`call_${roomId}`).emit("webrtc:call-ended", {
+        callId,
+        endedBy: socket.userId,
+        endedByName: socket.displayName,
+      });
+
+      // Clean up - remove all sockets from this call room
+      const room = io.sockets.adapter.rooms.get(`call_${roomId}`);
+      if (room) {
+        room.forEach((socketId) => {
+          const participantSocket = io.sockets.sockets.get(socketId);
+          if (participantSocket) {
+            participantSocket.leave(`call_${roomId}`);
+          }
+        });
+      }
+    });
+
     // Handle errors
     socket.on("error", (error) => {
       console.error(`Socket error for userID ${socket.userId}:`, error);
