@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { protect } = require("../middleware/auth");
+const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
 const LiveStream = require("../models/LiveStream");
 const LiveMessage = require("../models/LiveMessage");
 const LiveViewer = require("../models/LiveViewer");
@@ -15,7 +15,7 @@ const User = require("../models/User");
  * @desc    Create a new live stream
  * @access  Private
  */
-router.post("/create", protect, async (req, res) => {
+router.post("/create", authenticateToken, requireSyncedUser, async (req, res) => {
   try {
     const {
       liveType,
@@ -201,7 +201,7 @@ router.get("/:id", async (req, res) => {
  * @desc    Join a live stream as viewer
  * @access  Private
  */
-router.post("/:id/join", protect, async (req, res) => {
+router.post("/:id/join", authenticateToken, requireSyncedUser, async (req, res) => {
   try {
     const { userUid } = req.body;
 
@@ -284,7 +284,7 @@ router.post("/:id/join", protect, async (req, res) => {
  * @desc    Leave a live stream
  * @access  Private
  */
-router.post("/:id/leave", protect, async (req, res) => {
+router.post("/:id/leave", authenticateToken, requireSyncedUser, async (req, res) => {
   try {
     const { userUid } = req.body;
 
@@ -350,7 +350,7 @@ router.post("/:id/leave", protect, async (req, res) => {
  * @desc    End a live stream (host only)
  * @access  Private
  */
-router.post("/:id/end", protect, async (req, res) => {
+router.post("/:id/end", authenticateToken, requireSyncedUser, async (req, res) => {
   try {
     const liveStream = await LiveStream.findById(req.params.id);
 
@@ -409,7 +409,7 @@ router.post("/:id/end", protect, async (req, res) => {
  * @desc    Send a message in live stream
  * @access  Private
  */
-router.post("/:id/message", protect, async (req, res) => {
+router.post("/:id/message", authenticateToken, requireSyncedUser, async (req, res) => {
   try {
     const { message, messageType = "COMMENT" } = req.body;
 
@@ -550,7 +550,7 @@ router.get("/:id/seats", async (req, res) => {
  * @desc    Join a party room seat
  * @access  Private
  */
-router.post("/:id/seats/:seatIndex/join", protect, async (req, res) => {
+router.post("/:id/seats/:seatIndex/join", authenticateToken, requireSyncedUser, async (req, res) => {
   try {
     const { userUid } = req.body;
     const seatIndex = parseInt(req.params.seatIndex);
@@ -639,7 +639,7 @@ router.post("/:id/seats/:seatIndex/join", protect, async (req, res) => {
  * @desc    Leave a party room seat
  * @access  Private
  */
-router.post("/:id/seats/:seatIndex/leave", protect, async (req, res) => {
+router.post("/:id/seats/:seatIndex/leave", authenticateToken, requireSyncedUser, async (req, res) => {
   try {
     const seatIndex = parseInt(req.params.seatIndex);
 
