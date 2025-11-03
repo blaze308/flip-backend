@@ -39,6 +39,7 @@ const storyRoutes = require("./routes/stories");
 const chatRoutes = require("./routes/chats");
 const callRoutes = require("./routes/calls");
 const deepLinkRoutes = require("./routes/deeplinks");
+const liveRoutes = require("./routes/live");
 
 // Initialize Express app
 const app = express();
@@ -161,6 +162,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/stories", storyRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/calls", callRoutes);
+app.use("/api/live", liveRoutes);
 
 // Serve uploaded files statically
 app.use("/uploads", express.static("uploads"));
@@ -269,7 +271,10 @@ Ready to serve your Flutter app! 🎉
 
     // Initialize Socket.IO
     const { initializeSocket } = require("./config/socket");
-    initializeSocket(server);
+    const io = initializeSocket(server);
+    
+    // Store io instance in app for routes to access
+    app.set("io", io);
 
     // Store server reference for graceful shutdown
     global.server = server;

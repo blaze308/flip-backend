@@ -389,6 +389,95 @@ const initializeSocket = (server) => {
       }
     });
 
+    // ========== LIVE STREAMING EVENTS ==========
+
+    // Handle joining a live stream room
+    socket.on("live:join", (data) => {
+      const { liveStreamId } = data;
+      socket.join(`live:${liveStreamId}`);
+      console.log(
+        `🎥 LIVE: User ${socket.userId} joined live stream ${liveStreamId}`
+      );
+
+      // Notify other viewers
+      socket.to(`live:${liveStreamId}`).emit("live:viewer:joined", {
+        userId: socket.userId,
+        userName: socket.displayName,
+      });
+    });
+
+    // Handle leaving a live stream room
+    socket.on("live:leave", (data) => {
+      const { liveStreamId } = data;
+      socket.leave(`live:${liveStreamId}`);
+      console.log(
+        `🎥 LIVE: User ${socket.userId} left live stream ${liveStreamId}`
+      );
+
+      // Notify other viewers
+      socket.to(`live:${liveStreamId}`).emit("live:viewer:left", {
+        userId: socket.userId,
+        userName: socket.displayName,
+      });
+    });
+
+    // Handle live stream updates (for Agora party)
+    socket.on("live:update", (data) => {
+      const { liveStreamId, updateType, updateData } = data;
+      console.log(
+        `🎥 LIVE: Update ${updateType} in live stream ${liveStreamId}`
+      );
+
+      // Broadcast update to all viewers
+      socket.to(`live:${liveStreamId}`).emit("live:update", {
+        updateType,
+        updateData,
+        userId: socket.userId,
+      });
+    });
+
+    // Handle party seat updates
+    socket.on("live:seat:update", (data) => {
+      const { liveStreamId, seatIndex, action, seatData } = data;
+      console.log(
+        `🎥 LIVE: Seat ${seatIndex} ${action} in live stream ${liveStreamId}`
+      );
+
+      // Broadcast to all viewers
+      io.to(`live:${liveStreamId}`).emit("live:seat:update", {
+        seatIndex,
+        action, // 'joined', 'left', 'muted', 'unmuted', 'video_on', 'video_off'
+        seatData,
+        userId: socket.userId,
+      });
+    });
+
+    // Handle host actions (mute, remove, etc.)
+    socket.on("live:host:action", (data) => {
+      const { liveStreamId, action, targetUserId, targetSeatIndex } = data;
+      console.log(
+        `🎥 LIVE: Host action ${action} on user ${targetUserId} in live stream ${liveStreamId}`
+      );
+
+      // Notify the target user
+      if (targetUserId) {
+        io.to(`user_${targetUserId}`).emit("live:host:action", {
+          liveStreamId,
+          action, // 'muted', 'unmuted', 'removed', 'approved', 'video_enabled', 'video_disabled'
+          seatIndex: targetSeatIndex,
+          hostId: socket.userId,
+        });
+      }
+
+      // Broadcast to all viewers
+      socket.to(`live:${liveStreamId}`).emit("live:host:action", {
+        action,
+        targetUserId,
+        targetSeatIndex,
+        hostId: socket.userId,
+      });
+    });
+
     // Handle errors
     socket.on("error", (error) => {
       console.error(`Socket error for userID ${socket.userId}:`, error);
