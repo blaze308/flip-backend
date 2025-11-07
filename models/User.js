@@ -347,6 +347,154 @@ const userSchema = new mongoose.Schema(
       },
     },
 
+    // Gamification & Levels
+    gamification: {
+      // Wealth Level (based on coins sent)
+      creditsSent: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      wealthLevel: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 200,
+      },
+
+      // Live Level (based on gifts received)
+      giftsReceived: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      liveLevel: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 40,
+      },
+
+      // Coins & Currency
+      coins: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      diamonds: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      points: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      // VIP System (3 tiers)
+      isNormalVip: {
+        type: Boolean,
+        default: false,
+      },
+      isSuperVip: {
+        type: Boolean,
+        default: false,
+      },
+      isDiamondVip: {
+        type: Boolean,
+        default: false,
+      },
+      vipExpiresAt: {
+        type: Date,
+        default: null,
+      },
+
+      // MVP Premium Membership
+      isMVP: {
+        type: Boolean,
+        default: false,
+      },
+      mvpExpiresAt: {
+        type: Date,
+        default: null,
+      },
+
+      // Guardian System (3 tiers)
+      guardianType: {
+        type: String,
+        enum: ["silver", "gold", "king", null],
+        default: null,
+      },
+      guardianExpiresAt: {
+        type: Date,
+        default: null,
+      },
+      guardingUserId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+      guardedByUserId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+      },
+
+      // Experience & Progress
+      experiencePoints: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      totalGiftsSent: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+    },
+
+    // Host Status
+    isHost: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    hostApprovedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // Agency System
+    agency: {
+      agencyId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Agency',
+        default: null,
+      },
+      role: {
+        type: String,
+        enum: ['owner', 'agent', 'host', null],
+        default: null,
+      },
+      joinedAt: {
+        type: Date,
+        default: null,
+      },
+    },
+
+    // Social Features
+    closeFriends: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    profileVisitsCount: {
+      type: Number,
+      default: 0,
+    },
+
     // Soft Delete
     deletedAt: {
       type: Date,
@@ -494,6 +642,222 @@ userSchema.methods.unblockUser = function (userId) {
     (id) => id.toString() !== userId.toString()
   );
   return this.save();
+};
+
+// Gamification methods
+userSchema.methods.addCoins = function (amount) {
+  if (!this.gamification) this.gamification = {};
+  this.gamification.coins = (this.gamification.coins || 0) + amount;
+  return this.save();
+};
+
+userSchema.methods.deductCoins = function (amount) {
+  if (!this.gamification) this.gamification = {};
+  const currentCoins = this.gamification.coins || 0;
+  if (currentCoins < amount) {
+    throw new Error("Insufficient coins");
+  }
+  this.gamification.coins = currentCoins - amount;
+  return this.save();
+};
+
+userSchema.methods.addCreditsSent = function (amount) {
+  if (!this.gamification) this.gamification = {};
+  this.gamification.creditsSent = (this.gamification.creditsSent || 0) + amount;
+  this.gamification.wealthLevel = this.calculateWealthLevel();
+  return this.save();
+};
+
+userSchema.methods.addGiftsReceived = function (amount) {
+  if (!this.gamification) this.gamification = {};
+  this.gamification.giftsReceived =
+    (this.gamification.giftsReceived || 0) + amount;
+  this.gamification.liveLevel = this.calculateLiveLevel();
+  return this.save();
+};
+
+userSchema.methods.calculateWealthLevel = function () {
+  const creditsSent = this.gamification?.creditsSent || 0;
+  const wealthThresholds = [
+    0, 3000, 6000, 16000, 30000, 52000, 85000, 137000, 214000, 323000, 492000,
+    741000, 1100000, 1690000, 2528000, 3637000, 5137000, 7337000, 10137000,
+    14137000, 19137000, 26137000, 35137000, 47137000, 62137000, 81137000,
+    105137000, 135137000, 172137000, 218137000, 275137000, 345137000,
+    430137000, 533137000, 657137000, 805137000, 981137000, 1189137000,
+    1433137000, 1717137000, 2047137000, 2427137000, 2863137000, 3361137000,
+    3927137000, 4567137000, 5289137000, 6099137000, 7005137000, 8015137000,
+    9137137000, 10379137000, 11749137000, 13255137000, 14905137000,
+    16707137000, 18669137000, 20799137000, 23105137000, 25595137000,
+    28277137000, 31159137000, 34249137000, 37555137000, 41085137000,
+    44847137000, 48849137000, 53099137000, 57605137000, 62375137000,
+    67417137000, 72739137000, 78349137000, 84255137000, 90465137000,
+    96987137000, 103829137000, 110999137000, 118505137000, 126355137000,
+    134557137000, 143119137000, 152049137000, 161355137000, 171045137000,
+    181127137000, 191609137000, 202499137000, 213805137000, 225535137000,
+    237697137000, 250299137000, 263349137000, 276855137000, 290825137000,
+    305267137000, 320189137000, 335599137000, 351505137000, 367915137000,
+    384837137000, 402279137000, 420249137000, 438755137000, 457805137000,
+    477407137000, 497569137000, 518299137000, 539605137000, 561495137000,
+    583977137000, 607059137000, 630749137000, 655055137000, 679985137000,
+    705547137000, 731749137000, 758599137000, 786105137000, 814275137000,
+    843117137000, 872639137000, 902849137000, 933755137000, 965365137000,
+    997687137000, 1030729137000, 1064499137000, 1099005137000, 1134255137000,
+    1170257137000, 1207019137000, 1244549137000, 1282855137000, 1321945137000,
+    1361827137000, 1402509137000, 1443999137000, 1486305137000, 1529435137000,
+    1573397137000, 1618199137000, 1663849137000, 1710355137000, 1757725137000,
+    1805967137000, 1855089137000, 1905099137000, 1956005137000, 2007815137000,
+    2060537137000, 2114179137000, 2168749137000, 2224255137000, 2280705137000,
+    2338107137000, 2396469137000, 2455799137000, 2516105137000, 2577395137000,
+    2639677137000, 2702959137000, 2767249137000, 2832555137000, 2898885137000,
+    2966247137000, 3034649137000, 3104099137000, 3174605137000, 3246175137000,
+    3318817137000, 3392539137000, 3467349137000, 3543255137000, 3620265137000,
+    3698387137000, 3777629137000, 3857999137000, 3939505137000, 4022155137000,
+    4105957137000, 4190919137000, 4277049137000, 4364355137000, 4452845137000,
+    4542527137000, 4633409137000, 4725499137000, 4818805137000, 4913335137000,
+    5009097137000, 5106099137000, 5204349137000, 5303855137000, 5404625137000,
+    5506667137000, 5609989137000, 5714599137000, 5820505137000, 5927715137000,
+    6036237137000, 6146079137000, 6257249137000, 6369755137000,
+  ]; // 200 levels
+
+  for (let i = wealthThresholds.length - 1; i >= 0; i--) {
+    if (creditsSent >= wealthThresholds[i]) {
+      return i;
+    }
+  }
+  return 0;
+};
+
+userSchema.methods.calculateLiveLevel = function () {
+  const giftsReceived = this.gamification?.giftsReceived || 0;
+  const liveThresholds = [
+    0, 10000, 70000, 250000, 630000, 1410000, 3010000, 5710000, 10310000,
+    18110000, 31010000, 52010000, 85010000, 137010000, 214010000, 323010000,
+    492010000, 741010000, 1100010000, 1689010000, 2528010000, 3637010000,
+    5137010000, 7337010000, 10137010000, 14137010000, 19137010000, 26137010000,
+    35137010000, 47137010000, 62137010000, 81137010000, 105137010000,
+    135137010000, 172137010000, 218137010000, 275137010000, 345137010000,
+    430137010000, 533137010000,
+  ]; // 40 levels
+
+  for (let i = liveThresholds.length - 1; i >= 0; i--) {
+    if (giftsReceived >= liveThresholds[i]) {
+      return i;
+    }
+  }
+  return 0;
+};
+
+userSchema.methods.activateVIP = function (tier, months) {
+  if (!this.gamification) this.gamification = {};
+
+  const now = new Date();
+  const expiresAt = new Date(now);
+  expiresAt.setMonth(expiresAt.getMonth() + months);
+
+  // Reset all VIP tiers first
+  this.gamification.isNormalVip = false;
+  this.gamification.isSuperVip = false;
+  this.gamification.isDiamondVip = false;
+
+  // Set the selected tier
+  if (tier === "normal") {
+    this.gamification.isNormalVip = true;
+  } else if (tier === "super") {
+    this.gamification.isSuperVip = true;
+  } else if (tier === "diamond") {
+    this.gamification.isDiamondVip = true;
+  }
+
+  this.gamification.vipExpiresAt = expiresAt;
+  return this.save();
+};
+
+userSchema.methods.activateMVP = function (months) {
+  if (!this.gamification) this.gamification = {};
+
+  const now = new Date();
+  const expiresAt = new Date(now);
+  expiresAt.setMonth(expiresAt.getMonth() + months);
+
+  this.gamification.isMVP = true;
+  this.gamification.mvpExpiresAt = expiresAt;
+  return this.save();
+};
+
+userSchema.methods.activateGuardian = function (type, months, targetUserId) {
+  if (!this.gamification) this.gamification = {};
+
+  const now = new Date();
+  const expiresAt = new Date(now);
+  expiresAt.setMonth(expiresAt.getMonth() + months);
+
+  this.gamification.guardianType = type;
+  this.gamification.guardianExpiresAt = expiresAt;
+  this.gamification.guardingUserId = targetUserId;
+  return this.save();
+};
+
+// Add Experience Points (with MVP 2x boost)
+userSchema.methods.addExperience = function (xp) {
+  if (!this.gamification) this.gamification = {};
+
+  // Check if user has active MVP
+  const now = new Date();
+  const hasMVP =
+    this.gamification.isMVP &&
+    this.gamification.mvpExpiresAt &&
+    this.gamification.mvpExpiresAt > now;
+
+  // Apply 2x XP boost for MVP users
+  const xpToAdd = hasMVP ? xp * 2 : xp;
+
+  this.gamification.experiencePoints =
+    (this.gamification.experiencePoints || 0) + xpToAdd;
+
+  console.log(
+    `🎯 Added ${xpToAdd} XP to ${this.displayName} (MVP Boost: ${hasMVP ? "YES" : "NO"})`
+  );
+
+  return this.save();
+};
+
+userSchema.methods.checkAndExpireSubscriptions = function () {
+  if (!this.gamification) return this.save();
+
+  const now = new Date();
+  let changed = false;
+
+  // Check VIP expiration
+  if (
+    this.gamification.vipExpiresAt &&
+    this.gamification.vipExpiresAt < now
+  ) {
+    this.gamification.isNormalVip = false;
+    this.gamification.isSuperVip = false;
+    this.gamification.isDiamondVip = false;
+    this.gamification.vipExpiresAt = null;
+    changed = true;
+  }
+
+  // Check MVP expiration
+  if (this.gamification.mvpExpiresAt && this.gamification.mvpExpiresAt < now) {
+    this.gamification.isMVP = false;
+    this.gamification.mvpExpiresAt = null;
+    changed = true;
+  }
+
+  // Check Guardian expiration
+  if (
+    this.gamification.guardianExpiresAt &&
+    this.gamification.guardianExpiresAt < now
+  ) {
+    this.gamification.guardianType = null;
+    this.gamification.guardianExpiresAt = null;
+    this.gamification.guardingUserId = null;
+    changed = true;
+  }
+
+  return changed ? this.save() : Promise.resolve(this);
 };
 
 // Static methods

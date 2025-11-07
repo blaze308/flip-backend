@@ -40,6 +40,19 @@ const chatRoutes = require("./routes/chats");
 const callRoutes = require("./routes/calls");
 const deepLinkRoutes = require("./routes/deeplinks");
 const liveRoutes = require("./routes/live");
+const gamificationRoutes = require("./routes/gamification");
+const walletRoutes = require("./routes/wallet");
+const giftRoutes = require("./routes/gifts");
+const hostRoutes = require("./routes/host");
+const rewardsRoutes = require("./routes/rewards");
+const tasksRoutes = require("./routes/tasks");
+const rankingsRoutes = require("./routes/rankings");
+const agencyRoutes = require("./routes/agency");
+const fanclubRoutes = require("./routes/fanclub");
+const socialRoutes = require("./routes/social");
+
+// Import cron jobs
+const { startVIPDailyCoinsJob } = require("./cron/vipDailyCoins");
 
 // Initialize Express app
 const app = express();
@@ -57,6 +70,9 @@ const initializeServices = async () => {
 
     // Connect to MongoDB
     await connectDB();
+
+    // Start cron jobs
+    startVIPDailyCoinsJob();
 
     console.log("✅ All services initialized successfully");
   } catch (error) {
@@ -163,6 +179,16 @@ app.use("/api/stories", storyRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/calls", callRoutes);
 app.use("/api/live", liveRoutes);
+app.use("/api/gamification", gamificationRoutes);
+app.use("/api/wallet", walletRoutes);
+app.use("/api/gifts", giftRoutes);
+app.use("/api/host", hostRoutes);
+app.use("/api/rewards", rewardsRoutes);
+app.use("/api/tasks", tasksRoutes);
+app.use("/api/rankings", rankingsRoutes);
+app.use("/api/agency", agencyRoutes);
+app.use("/api/fanclub", fanclubRoutes);
+app.use("/api/social", socialRoutes);
 
 // Serve uploaded files statically
 app.use("/uploads", express.static("uploads"));

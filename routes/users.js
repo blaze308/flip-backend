@@ -844,6 +844,210 @@ router.put(
 );
 
 /**
+ * GET /users/:userId
+ *
+ * Get public profile of any user by ID
+ */
+router.get("/:userId", authenticateJWT, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { user: currentUser } = req;
+
+    const targetUser = await User.findOne({
+      _id: userId,
+      isActive: true,
+      deletedAt: null,
+    }).select(
+      "-devices -subscription -stats -deletedAt -__v -blockedUsers -hiddenPosts -bookmarkedPosts"
+    );
+
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Check if profile is visible
+    if (
+      !targetUser.profile?.preferences?.privacy?.profileVisible &&
+      userId !== currentUser._id.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "This profile is private",
+      });
+    }
+
+    // Check if current user is blocked by target user
+    if (targetUser.blockedUsers.includes(currentUser._id)) {
+      return res.status(403).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Build response based on privacy settings
+    const response = {
+      id: targetUser._id,
+      firebaseUid: targetUser.firebaseUid,
+      displayName: targetUser.displayName,
+      photoURL: targetUser.photoURL,
+      profile: {
+        username: targetUser.profile?.username,
+        firstName: targetUser.profile?.firstName,
+        lastName: targetUser.profile?.lastName,
+        bio: targetUser.profile?.bio,
+        gender: targetUser.profile?.gender,
+        location: targetUser.profile?.location,
+        website: targetUser.profile?.website,
+        occupation: targetUser.profile?.occupation,
+        interests: targetUser.profile?.interests,
+        coverPhotoURL: targetUser.profile?.coverPhotoURL,
+      },
+      followersCount: targetUser.followers.length,
+      followingCount: targetUser.following.length,
+      isFollowing: currentUser.following.includes(userId),
+      isFollower: currentUser.followers.includes(userId),
+      createdAt: targetUser.createdAt,
+    };
+
+    // Only show email/phone if privacy settings allow or it's the current user
+    if (
+      userId === currentUser._id.toString() ||
+      targetUser.profile?.preferences?.privacy?.showEmail
+    ) {
+      response.email = targetUser.email;
+    }
+
+    if (
+      userId === currentUser._id.toString() ||
+      targetUser.profile?.preferences?.privacy?.showPhone
+    ) {
+      response.phoneNumber = targetUser.phoneNumber;
+    }
+
+    res.json({
+      success: true,
+      message: "Profile retrieved successfully",
+      data: {
+        user: response,
+      },
+    });
+  } catch (error) {
+    console.error("Get user profile error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve user profile",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+});
+
+/**
+ * PUT /users/username
+ *
+ * Update username (unique identifier)
+ */
+router.put(
+  "/username",
+  authenticateJWT,
+  requireAuth,
+  [
+    body("username")
+      .notEmpty()
+      .withMessage("Username is required")
+      .isLength({ min: 3, max: 30 })
+      .withMessage("Username must be between 3 and 30 characters")
+      .matches(/^[a-zA-Z0-9_]+$/)
+      .withMessage("Username can only contain letters, numbers, and underscores")
+      .trim(),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const { user } = req;
+      const { username } = req.body;
+
+      // Check if username is already taken
+      const existingUser = await User.findOne({
+        "profile.username": username,
+        _id: { $ne: user._id },
+      });
+
+      if (existingUser) {
+        return res.status(409).json({
+          success: false,
+          message: "Username is already taken",
+          code: "USERNAME_TAKEN",
+        });
+      }
+
+      // Update username
+      if (!user.profile) {
+        user.profile = {};
+      }
+      user.profile.username = username;
+      await user.save();
+
+      // Log username update
+      await AuditLog.logAction({
+        userId: user._id,
+        firebaseUid: user.firebaseUid,
+        action: "username_update",
+        success: true,
+        details: {
+          newUsername: username,
+        },
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
+      res.json({
+        success: true,
+        message: "Username updated successfully",
+        data: {
+          username: user.profile.username,
+        },
+      });
+    } catch (error) {
+      console.error("Update username error:", error);
+
+      // Log failed update
+      await AuditLog.logAction({
+        userId: req.user?._id,
+        firebaseUid: req.firebaseUser?.uid,
+        action: "username_update",
+        success: false,
+        errorMessage: error.message,
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      });
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to update username",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
+      });
+    }
+  }
+);
+
+/**
  * GET /users/following
  *
  * Get list of users that the current user is following
@@ -890,6 +1094,61 @@ router.get("/following", authenticateJWT, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to get following users",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+});
+
+/**
+ * GET /users/followers
+ *
+ * Get list of users that follow the current user
+ */
+router.get("/followers", authenticateJWT, async (req, res) => {
+  try {
+    const { user } = req;
+
+    // Get the list of users that follow the current user
+    const followerUsers = await User.find({
+      _id: { $in: user.followers },
+      isActive: true,
+      deletedAt: null,
+    })
+      .select(
+        "_id displayName photoURL username profile.firstName profile.lastName"
+      )
+      .lean();
+
+    // Format the response
+    const formattedUsers = followerUsers.map((followerUser) => ({
+      id: followerUser._id,
+      displayName: followerUser.displayName,
+      username:
+        followerUser.username ||
+        `${followerUser.profile?.firstName || ""} ${
+          followerUser.profile?.lastName || ""
+        }`.trim() ||
+        followerUser.displayName,
+      photoURL: followerUser.photoURL,
+      avatar: followerUser.photoURL,
+    }));
+
+    res.json({
+      success: true,
+      message: "Followers retrieved successfully",
+      data: {
+        users: formattedUsers,
+        count: formattedUsers.length,
+      },
+    });
+  } catch (error) {
+    console.error("Get followers error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get followers",
       error:
         process.env.NODE_ENV === "development"
           ? error.message
