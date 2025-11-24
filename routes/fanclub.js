@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const FanClub = require("../models/FanClub");
 const FanClubMember = require("../models/FanClubMember");
 const User = require("../models/User");
@@ -67,7 +67,7 @@ router.post(
 // @route   POST /api/fanclub/join/:clubId
 // @desc    Join a fan club (100 coins)
 // @access  Private
-router.post("/join/:clubId", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/join/:clubId", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { clubId } = req.params;
@@ -166,7 +166,7 @@ router.post("/join/:clubId", authenticateToken, requireSyncedUser, async (req, r
 // @route   POST /api/fanclub/renew/:clubId
 // @desc    Renew fan club membership (300 coins)
 // @access  Private
-router.post("/renew/:clubId", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/renew/:clubId", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { clubId } = req.params;
@@ -236,7 +236,7 @@ router.post("/renew/:clubId", authenticateToken, requireSyncedUser, async (req, 
 // @route   POST /api/fanclub/leave/:clubId
 // @desc    Leave a fan club
 // @access  Private
-router.post("/leave/:clubId", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/leave/:clubId", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { clubId } = req.params;
@@ -281,7 +281,7 @@ router.post("/leave/:clubId", authenticateToken, requireSyncedUser, async (req, 
 // @route   GET /api/fanclub/my-club
 // @desc    Get user's owned fan club
 // @access  Private
-router.get("/my-club", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/my-club", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 
@@ -313,7 +313,7 @@ router.get("/my-club", authenticateToken, requireSyncedUser, async (req, res) =>
 // @route   GET /api/fanclub/joined
 // @desc    Get fan clubs user has joined
 // @access  Private
-router.get("/joined", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/joined", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 
@@ -342,7 +342,7 @@ router.get("/joined", authenticateToken, requireSyncedUser, async (req, res) => 
 // @route   GET /api/fanclub/members/:clubId
 // @desc    Get fan club members
 // @access  Private
-router.get("/members/:clubId", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/members/:clubId", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { clubId } = req.params;
     const { page = 1, limit = 20 } = req.query;
@@ -508,7 +508,7 @@ router.put(
 // @route   POST /api/fanclub/toggle-badge/:clubId
 // @desc    Toggle fan club badge display
 // @access  Private
-router.post("/toggle-badge/:clubId", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/toggle-badge/:clubId", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { clubId } = req.params;

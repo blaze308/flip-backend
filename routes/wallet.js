@@ -4,7 +4,7 @@ const { body, query, validationResult } = require("express-validator");
 const Transaction = require("../models/Transaction");
 const User = require("../models/User");
 const CoinPackage = require("../models/CoinPackage");
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 
 /**
  * @route   GET /api/wallet/packages
@@ -38,7 +38,7 @@ router.get("/packages", async (req, res) => {
  * @desc    Get current user's wallet balance
  * @access  Private
  */
-router.get("/balance", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/balance", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 
@@ -164,7 +164,7 @@ router.get(
  * @desc    Get wallet summary (balance + stats)
  * @access  Private
  */
-router.get("/summary", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/summary", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 

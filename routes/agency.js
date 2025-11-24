@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const Agency = require("../models/Agency");
 const AgencyMember = require("../models/AgencyMember");
 const User = require("../models/User");
@@ -11,8 +11,8 @@ const { body, validationResult } = require("express-validator");
 // @access  Private
 router.post(
   "/create",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     body("name").trim().notEmpty().withMessage("Agency name is required"),
     body("description").optional().trim(),
@@ -179,7 +179,7 @@ router.post(
 // @route   GET /api/agency/my-agency
 // @desc    Get current user's agency info
 // @access  Private
-router.get("/my-agency", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/my-agency", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 
@@ -214,7 +214,7 @@ router.get("/my-agency", authenticateToken, requireSyncedUser, async (req, res) 
 // @route   POST /api/agency/leave
 // @desc    Leave current agency
 // @access  Private
-router.post("/leave", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/leave", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 
@@ -276,7 +276,7 @@ router.post("/leave", authenticateToken, requireSyncedUser, async (req, res) => 
 // @route   GET /api/agency/stats
 // @desc    Get agency statistics (for agents/owners)
 // @access  Private
-router.get("/stats", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/stats", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 

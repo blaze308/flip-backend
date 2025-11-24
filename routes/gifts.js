@@ -3,7 +3,7 @@ const router = express.Router();
 const { query, validationResult } = require("express-validator");
 const GiftSent = require("../models/GiftSent");
 const Gift = require("../models/Gift");
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 
 /**
  * @route   GET /api/gifts

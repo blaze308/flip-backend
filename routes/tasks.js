@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const Task = require("../models/Task");
 const UserTask = require("../models/UserTask");
 const moment = require("moment");
@@ -8,7 +8,7 @@ const moment = require("moment");
 // @route   GET /api/tasks
 // @desc    Get all available tasks with user progress
 // @access  Private
-router.get("/", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const user = req.user;
     const { type } = req.query; // daily, weekly, achievement, etc.
@@ -76,7 +76,7 @@ router.get("/", authenticateToken, requireSyncedUser, async (req, res) => {
 // @route   POST /api/tasks/:taskId/claim
 // @desc    Claim task rewards
 // @access  Private
-router.post("/:taskId/claim", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/:taskId/claim", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const user = req.user;
     const { taskId } = req.params;
@@ -128,7 +128,7 @@ router.post("/:taskId/claim", authenticateToken, requireSyncedUser, async (req, 
 // @route   GET /api/tasks/summary
 // @desc    Get task completion summary for current user
 // @access  Private
-router.get("/summary", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/summary", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const user = req.user;
 

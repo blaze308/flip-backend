@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const User = require("../models/User");
 const LiveStream = require("../models/LiveStream");
 const GiftSent = require("../models/GiftSent");
@@ -10,7 +10,7 @@ const GiftSent = require("../models/GiftSent");
  * @desc    Get host statistics
  * @access  Private
  */
-router.get("/stats", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/stats", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 
@@ -112,7 +112,7 @@ router.get("/stats", authenticateToken, requireSyncedUser, async (req, res) => {
  * @desc    Get detailed earnings breakdown
  * @access  Private
  */
-router.get("/earnings", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/earnings", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { period = "month" } = req.query; // month, week, year
@@ -218,7 +218,7 @@ router.get("/earnings", authenticateToken, requireSyncedUser, async (req, res) =
  * @desc    Apply to become a host
  * @access  Private
  */
-router.post("/apply", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/apply", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 

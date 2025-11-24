@@ -1,13 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const User = require("../models/User");
 const ProfileVisit = require("../models/ProfileVisit");
 
 // @route   POST /api/social/close-friends/add/:userId
 // @desc    Add user to close friends
 // @access  Private
-router.post("/close-friends/add/:userId", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/close-friends/add/:userId", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { userId } = req.params;
@@ -60,7 +60,7 @@ router.post("/close-friends/add/:userId", authenticateToken, requireSyncedUser, 
 // @route   POST /api/social/close-friends/remove/:userId
 // @desc    Remove user from close friends
 // @access  Private
-router.post("/close-friends/remove/:userId", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/close-friends/remove/:userId", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { userId } = req.params;
@@ -93,7 +93,7 @@ router.post("/close-friends/remove/:userId", authenticateToken, requireSyncedUse
 // @route   GET /api/social/close-friends
 // @desc    Get close friends list
 // @access  Private
-router.get("/close-friends", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/close-friends", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 
@@ -121,7 +121,7 @@ router.get("/close-friends", authenticateToken, requireSyncedUser, async (req, r
 // @route   GET /api/social/following
 // @desc    Get users the current user is following
 // @access  Private
-router.get("/following", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/following", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { page = 1, limit = 20 } = req.query;
@@ -164,7 +164,7 @@ router.get("/following", authenticateToken, requireSyncedUser, async (req, res) 
 // @route   POST /api/social/visits/record/:userId
 // @desc    Record a profile visit
 // @access  Private
-router.post("/visits/record/:userId", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/visits/record/:userId", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { userId } = req.params;
@@ -202,7 +202,7 @@ router.post("/visits/record/:userId", authenticateToken, requireSyncedUser, asyn
 // @route   GET /api/social/visits/visitors
 // @desc    Get users who visited my profile
 // @access  Private
-router.get("/visits/visitors", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/visits/visitors", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { limit = 50 } = req.query;
@@ -227,7 +227,7 @@ router.get("/visits/visitors", authenticateToken, requireSyncedUser, async (req,
 // @route   GET /api/social/visits/visited
 // @desc    Get profiles I visited
 // @access  Private
-router.get("/visits/visited", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/visits/visited", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
     const { limit = 50 } = req.query;
@@ -252,7 +252,7 @@ router.get("/visits/visited", authenticateToken, requireSyncedUser, async (req, 
 // @route   GET /api/social/blacklist
 // @desc    Get blocked users list
 // @access  Private
-router.get("/blacklist", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/blacklist", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { user } = req;
 

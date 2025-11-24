@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const Ranking = require("../models/Ranking");
 const GiftSent = require("../models/GiftSent");
 const User = require("../models/User");
@@ -9,7 +9,7 @@ const moment = require("moment");
 // @route   GET /api/rankings/:type/:period
 // @desc    Get rankings (host or rich, daily or weekly)
 // @access  Private
-router.get("/:type/:period", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/:type/:period", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const { type, period } = req.params;
     const user = req.user;
@@ -107,7 +107,7 @@ router.get("/:type/:period", authenticateToken, requireSyncedUser, async (req, r
 // @route   POST /api/rankings/claim
 // @desc    Claim ranking reward
 // @access  Private
-router.post("/claim", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/claim", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const user = req.user;
     const { type, period, periodStart } = req.body;
