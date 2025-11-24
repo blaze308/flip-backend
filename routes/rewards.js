@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { authenticateToken, requireSyncedUser } = require("../middleware/auth");
+const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
 const DailyReward = require("../models/DailyReward");
 const User = require("../models/User");
 const Transaction = require("../models/Transaction");
@@ -20,7 +20,7 @@ const DAILY_REWARDS = [
 // @route   GET /api/rewards/daily/status
 // @desc    Get daily reward status for current user
 // @access  Private
-router.get("/daily/status", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/daily/status", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const user = req.user;
 
@@ -83,7 +83,7 @@ router.get("/daily/status", authenticateToken, requireSyncedUser, async (req, re
 // @route   POST /api/rewards/daily/claim
 // @desc    Claim daily login reward
 // @access  Private
-router.post("/daily/claim", authenticateToken, requireSyncedUser, async (req, res) => {
+router.post("/daily/claim", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const user = req.user;
 
@@ -183,7 +183,7 @@ router.post("/daily/claim", authenticateToken, requireSyncedUser, async (req, re
 // @route   GET /api/rewards/history
 // @desc    Get reward claim history for current user
 // @access  Private
-router.get("/history", authenticateToken, requireSyncedUser, async (req, res) => {
+router.get("/history", authenticateJWT, requireAuth, async (req, res) => {
   try {
     const user = req.user;
     const { page = 1, limit = 20 } = req.query;
