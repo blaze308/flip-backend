@@ -73,8 +73,8 @@ router.get("/balance", authenticateJWT, requireAuth, async (req, res) => {
  */
 router.get(
   "/transactions",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     query("type")
       .optional()
@@ -195,8 +195,8 @@ router.get("/summary", authenticateJWT, requireAuth, async (req, res) => {
  */
 router.post(
   "/purchase",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     body("currency")
       .isIn(["coins", "diamonds"])
@@ -295,8 +295,8 @@ router.post(
  */
 router.post(
   "/transfer",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     body("recipientId")
       .notEmpty()

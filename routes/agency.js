@@ -108,8 +108,8 @@ router.post(
 // @access  Private
 router.post(
   "/join",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [body("agencyId").trim().notEmpty().withMessage("Agency ID is required")],
   async (req, res) => {
     try {

@@ -39,8 +39,8 @@ router.get("/", async (req, res) => {
  */
 router.get(
   "/received",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     query("limit")
       .optional()
@@ -123,8 +123,8 @@ router.get(
  */
 router.get(
   "/sent",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     query("limit")
       .optional()
@@ -202,8 +202,8 @@ router.get(
  */
 router.get(
   "/stats",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   async (req, res) => {
     try {
       const { user } = req;

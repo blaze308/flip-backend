@@ -12,8 +12,8 @@ const { body, validationResult } = require("express-validator");
 // @access  Private
 router.post(
   "/create",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     body("name").trim().notEmpty().isLength({ max: 50 }).withMessage("Club name required (max 50 chars)"),
     body("description").optional().trim().isLength({ max: 200 }),
@@ -390,8 +390,8 @@ router.get("/members/:clubId", authenticateJWT, requireAuth, async (req, res) =>
 // @access  Private
 router.post(
   "/kick/:memberId",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [body("reason").optional().trim()],
   async (req, res) => {
     try {
@@ -442,8 +442,8 @@ router.post(
 // @access  Private
 router.put(
   "/update",
-  authenticateToken,
-  requireSyncedUser,
+  authenticateJWT,
+  requireAuth,
   [
     body("name").optional().trim().isLength({ max: 50 }),
     body("description").optional().trim().isLength({ max: 200 }),
