@@ -10,6 +10,15 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.env.development
+.env.production
+.env.staging
+env.txt
+flip env.txt
+keys.txt
+commands.txt
+ENV_KEYS_QUICK_REFERENCE.md
+ENV_CONFIGURATION.md
 
 # Logs
 logs
@@ -95,6 +104,18 @@ temp/
 .DS_Store
 .DS_Store?
 ._*
+
+# Sensitive files - DO NOT TRACK
+*.jks
+*.jks.old
+*.key
+*.p8
+*.p12
+secrets.json
+firebase.json
+google-services.json
+credentials.json
+private_key.json
 .Spotlight-V100
 .Trashes
 ehthumbs.db
