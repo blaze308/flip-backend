@@ -9,6 +9,7 @@ const GiftSent = require("../models/GiftSent");
 const GiftSender = require("../models/GiftSender");
 const Gift = require("../models/Gift");
 const User = require("../models/User");
+const { admin } = require("../config/firebase");
 
 /**
  * @route   POST /api/live/create
@@ -163,6 +164,302 @@ router.get("/active", async (req, res) => {
     });
   }
 });
+
+/**
+ * @route   POST /api/live/:id/party/host/mute
+ * @desc    Host mutes a user in a party (audio/video)
+ * @access  Private (Host only)
+ */
+router.post(
+  "/:id/party/host/mute",
+  authenticateJWT,
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { targetUserId, seatIndex } = req.body;
+
+      if (!targetUserId || typeof seatIndex !== "number") {
+        return res.status(400).json({
+          success: false,
+          message: "targetUserId and seatIndex are required",
+        });
+      }
+
+      const liveStream = await LiveStream.findById(req.params.id);
+      if (!liveStream) {
+        return res.status(404).json({
+          success: false,
+          message: "Live stream not found",
+        });
+      }
+
+      // Ensure requester is host
+      if (liveStream.authorId !== req.user._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Only the host can perform this action",
+        });
+      }
+
+      const seat = await AudioChatUser.findOne({
+        liveStreamId: req.params.id,
+        seatIndex: seatIndex,
+        joinedUserId: targetUserId,
+      });
+
+      if (!seat) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found in seat",
+        });
+      }
+
+      seat.enabledAudio = false;
+      if (!seat.usersMutedByHostAudio.includes(targetUserId)) {
+        seat.usersMutedByHostAudio.push(targetUserId);
+      }
+      await seat.save();
+
+      // Notify target user and room
+      if (req.app.get("io")) {
+        req.app.get("io").to(`live:${req.params.id}`).emit("live:host:action", {
+          action: "mute",
+          targetUserId: targetUserId,
+          liveStreamId: req.params.id,
+          seatIndex,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "User muted",
+        data: seat,
+      });
+    } catch (error) {
+      console.error("Mute user error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to mute user",
+        error: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * @route   POST /api/live/:id/party/host/unmute
+ * @desc    Host unmutes a user in a party (audio/video)
+ * @access  Private (Host only)
+ */
+router.post(
+  "/:id/party/host/unmute",
+  authenticateJWT,
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { targetUserId, seatIndex } = req.body;
+
+      if (!targetUserId || typeof seatIndex !== "number") {
+        return res.status(400).json({
+          success: false,
+          message: "targetUserId and seatIndex are required",
+        });
+      }
+
+      const liveStream = await LiveStream.findById(req.params.id);
+      if (!liveStream) {
+        return res.status(404).json({
+          success: false,
+          message: "Live stream not found",
+        });
+      }
+
+      // Ensure requester is host
+      if (liveStream.authorId !== req.user._id.toString()) {
+        return res.status(403).json({
+          success: false,
+          message: "Only the host can perform this action",
+        });
+      }
+
+      const seat = await AudioChatUser.findOne({
+        liveStreamId: req.params.id,
+        seatIndex: seatIndex,
+        joinedUserId: targetUserId,
+      });
+
+      if (!seat) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found in seat",
+        });
+      }
+
+      seat.enabledAudio = true;
+      seat.usersMutedByHostAudio = seat.usersMutedByHostAudio.filter(
+        (id) => id !== targetUserId
+      );
+      await seat.save();
+
+      // Notify target user and room
+      if (req.app.get("io")) {
+        req.app.get("io").to(`live:${req.params.id}`).emit("live:host:action", {
+          action: "unmute",
+          targetUserId: targetUserId,
+          liveStreamId: req.params.id,
+          seatIndex,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "User unmuted",
+        data: seat,
+      });
+    } catch (error) {
+      console.error("Unmute user error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to unmute user",
+        error: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * @route   GET /api/live/:id/party/platform/quota
+ * @desc    Get remaining platform speaker quota for current user
+ * @access  Private
+ */
+router.get(
+  "/:id/party/platform/quota",
+  authenticateJWT,
+  requireAuth,
+  async (req, res) => {
+    try {
+      const firestore = admin.firestore();
+      const quotaDoc = firestore
+        .collection("platformSpeakerQuota")
+        .doc(req.user._id.toString());
+
+      const snap = await quotaDoc.get();
+      const defaultQuota =
+        parseInt(process.env.PLATFORM_SPEAKER_DEFAULT_QUOTA || "0", 10) || 0;
+      const remaining = snap.exists
+        ? snap.data()?.remaining ?? 0
+        : defaultQuota;
+
+      // Initialize doc if missing
+      if (!snap.exists) {
+        await quotaDoc.set({ remaining: remaining, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      }
+
+      res.json({
+        success: true,
+        data: { remaining },
+      });
+    } catch (error) {
+      console.error("Platform quota error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch platform speaker quota",
+        error: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * @route   POST /api/live/:id/party/platform/message
+ * @desc    Send a platform speaker message, store in Firestore, decrement quota
+ * @access  Private
+ */
+router.post(
+  "/:id/party/platform/message",
+  authenticateJWT,
+  requireAuth,
+  async (req, res) => {
+    try {
+      const { message } = req.body;
+      if (!message || typeof message !== "string" || message.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Message is required",
+        });
+      }
+
+      const firestore = admin.firestore();
+      const quotaDoc = firestore
+        .collection("platformSpeakerQuota")
+        .doc(req.user._id.toString());
+      const snap = await quotaDoc.get();
+      const defaultQuota =
+        parseInt(process.env.PLATFORM_SPEAKER_DEFAULT_QUOTA || "0", 10) || 0;
+      let remaining = snap.exists
+        ? snap.data()?.remaining ?? 0
+        : defaultQuota;
+
+      if (remaining <= 0) {
+        return res.status(403).json({
+          success: false,
+          message: "No platform speaker quota remaining",
+          data: { remaining: 0 },
+        });
+      }
+
+      // Decrement quota
+      remaining = Math.max(0, remaining - 1);
+      await quotaDoc.set(
+        {
+          remaining,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      // Build payload
+      const author = req.user.displayName || req.user.profile?.username || "User";
+      const avatarUrl = req.user.photoURL || "";
+      const payload = {
+        message: message.trim(),
+        author,
+        avatarUrl,
+        isMysteriousMan: false,
+        liveStreamId: req.params.id,
+        userId: req.user._id.toString(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      // Store in Firestore
+      await firestore.collection("platformMessage").add(payload);
+
+      // Emit to room via socket
+      if (req.app.get("io")) {
+        req.app.get("io").to(`live:${req.params.id}`).emit("live:platform:message", {
+          ...payload,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Platform message sent",
+        data: {
+          remaining,
+          payload,
+        },
+      });
+    } catch (error) {
+      console.error("Platform message error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to send platform message",
+        error: error.message,
+      });
+    }
+  }
+);
 
 /**
  * @route   GET /api/live/:id
@@ -552,7 +849,7 @@ router.get("/:id/seats", async (req, res) => {
  */
 router.post("/:id/seats/:seatIndex/join", authenticateJWT, requireAuth, async (req, res) => {
   try {
-    const { userUid } = req.body;
+    const { userUid, canTalk } = req.body;
     const seatIndex = parseInt(req.params.seatIndex);
 
     const liveStream = await LiveStream.findById(req.params.id);
@@ -578,6 +875,7 @@ router.post("/:id/seats/:seatIndex/join", authenticateJWT, requireAuth, async (r
       existingSeat.joinedUserUid = null;
       existingSeat.canTalk = false;
       existingSeat.enabledVideo = false;
+      existingSeat.leftRoom = true;
       await existingSeat.save();
     }
 
@@ -605,7 +903,12 @@ router.post("/:id/seats/:seatIndex/join", authenticateJWT, requireAuth, async (r
     seat.joinedUser = req.user._id;
     seat.joinedUserId = req.user._id.toString();
     seat.joinedUserUid = userUid;
-    seat.canTalk = false; // Host needs to approve
+    // Preserve canTalk if provided, else allow host seat to talk by default
+    if (typeof canTalk === "boolean") {
+      seat.canTalk = canTalk;
+    } else {
+      seat.canTalk = liveStream.authorId === req.user._id.toString();
+    }
     seat.enabledVideo = false;
     seat.enabledAudio = true;
     seat.leftRoom = false;
@@ -662,7 +965,7 @@ router.post("/:id/seats/:seatIndex/leave", authenticateJWT, requireAuth, async (
     seat.joinedUserUid = null;
     seat.canTalk = false;
     seat.enabledVideo = false;
-    seat.leftRoom = false;
+    seat.leftRoom = true;
     await seat.save();
 
     // Emit socket event

@@ -54,6 +54,7 @@ const socialRoutes = require("./routes/social");
 
 // Import cron jobs
 const { startVIPDailyCoinsJob } = require("./cron/vipDailyCoins");
+const { startGhostCleanupJob } = require("./cron/ghostLiveCleanup");
 
 // Initialize Express app
 const app = express();
@@ -74,6 +75,7 @@ const initializeServices = async () => {
 
     // Start cron jobs
     startVIPDailyCoinsJob();
+    startGhostCleanupJob();
 
     console.log("✅ All services initialized successfully");
   } catch (error) {

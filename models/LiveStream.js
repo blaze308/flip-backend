@@ -278,6 +278,32 @@ const liveStreamSchema = new mongoose.Schema(
         type: String,
       },
     ],
+
+    // Heartbeat & Ghost Live Prevention
+    lastHeartbeat: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
+    isGhost: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    heartbeatStatus: {
+      type: String,
+      enum: ["active", "inactive", "ghost"],
+      default: "active",
+      index: true,
+    },
+    lastActivityTime: {
+      type: Date,
+      default: Date.now,
+    },
+    hostInactivityMinutes: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -323,6 +349,36 @@ liveStreamSchema.methods.addDiamonds = function (amount) {
   this.streamingDiamonds = (this.streamingDiamonds || 0) + amount;
   this.authorTotalDiamonds = (this.authorTotalDiamonds || 0) + amount;
   this.giftsTotal = (this.giftsTotal || 0) + amount;
+};
+
+// Method to update heartbeat (host keeps party alive)
+liveStreamSchema.methods.updateHeartbeat = function () {
+  this.lastHeartbeat = new Date();
+  this.lastActivityTime = new Date();
+  this.hostInactivityMinutes = 0;
+  this.isGhost = false;
+  this.heartbeatStatus = "active";
+  return this;
+};
+
+// Method to check if live is ghost (no heartbeat for 15+ minutes)
+liveStreamSchema.methods.checkIfGhost = function (ghostTimeoutMinutes = 15) {
+  const timeSinceLastHeartbeat = Math.floor(
+    (Date.now() - this.lastHeartbeat.getTime()) / 1000 / 60
+  );
+  
+  this.hostInactivityMinutes = timeSinceLastHeartbeat;
+  
+  if (timeSinceLastHeartbeat >= ghostTimeoutMinutes) {
+    this.isGhost = true;
+    this.heartbeatStatus = "ghost";
+  } else if (timeSinceLastHeartbeat > 5) {
+    this.heartbeatStatus = "inactive";
+  } else {
+    this.heartbeatStatus = "active";
+  }
+  
+  return this;
 };
 
 module.exports = mongoose.model("LiveStream", liveStreamSchema);

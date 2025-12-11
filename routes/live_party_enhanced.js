@@ -590,4 +590,105 @@ router.post(
   }
 );
 
+// ========== HEARTBEAT & GHOST LIVE PREVENTION ==========
+
+/**
+ * @route   PATCH /api/live/:id/heartbeat
+ * @desc    Update heartbeat to keep party alive (prevents ghost lives)
+ * @desc    Host must send heartbeat every 30 seconds
+ * @access  Private (Host only)
+ */
+router.patch("/:id/heartbeat", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const liveStream = await LiveStream.findById(req.params.id);
+
+    if (!liveStream) {
+      return res.status(404).json({
+        success: false,
+        message: "Live stream not found",
+      });
+    }
+
+    // Only host can send heartbeat
+    if (liveStream.authorId !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "Only the host can send heartbeat",
+      });
+    }
+
+    // Check if live is still active
+    if (!liveStream.streaming) {
+      return res.status(400).json({
+        success: false,
+        message: "Live stream has ended",
+      });
+    }
+
+    // Update heartbeat
+    liveStream.updateHeartbeat();
+    await liveStream.save();
+
+    res.json({
+      success: true,
+      message: "Heartbeat received",
+      data: {
+        liveStreamId: liveStream._id,
+        heartbeatStatus: liveStream.heartbeatStatus,
+        lastHeartbeat: liveStream.lastHeartbeat,
+        isGhost: liveStream.isGhost,
+      },
+    });
+  } catch (error) {
+    console.error("Heartbeat error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to process heartbeat",
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * @route   GET /api/live/:id/heartbeat/status
+ * @desc    Get current heartbeat and ghost status of a live
+ * @access  Public
+ */
+router.get("/:id/heartbeat/status", async (req, res) => {
+  try {
+    const liveStream = await LiveStream.findById(req.params.id).select(
+      "heartbeatStatus lastHeartbeat isGhost hostInactivityMinutes streaming"
+    );
+
+    if (!liveStream) {
+      return res.status(404).json({
+        success: false,
+        message: "Live stream not found",
+      });
+    }
+
+    // Check current ghost status
+    liveStream.checkIfGhost();
+
+    res.json({
+      success: true,
+      data: {
+        liveStreamId: liveStream._id,
+        heartbeatStatus: liveStream.heartbeatStatus,
+        lastHeartbeat: liveStream.lastHeartbeat,
+        isGhost: liveStream.isGhost,
+        hostInactivityMinutes: liveStream.hostInactivityMinutes,
+        streaming: liveStream.streaming,
+      },
+    });
+  } catch (error) {
+    console.error("Get heartbeat status error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to get heartbeat status",
+      error: error.message,
+    });
+  }
+});
+
 module.exports = router;
