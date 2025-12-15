@@ -191,15 +191,16 @@ router.post(
  * POST /api/gamification/mvp/purchase
  *
  * Purchase MVP subscription
+ * Accepts durationDays to align with mobile packages (30, 90, 180, 365).
  */
 router.post(
   "/mvp/purchase",
   authenticateJWT,
   requireAuth,
   [
-    body("months")
-      .isInt({ min: 1, max: 12 })
-      .withMessage("Months must be between 1 and 12"),
+    body("durationDays")
+      .isInt({ min: 30, max: 365 })
+      .withMessage("durationDays must be between 30 and 365"),
   ],
   async (req, res) => {
     try {
@@ -213,10 +214,26 @@ router.post(
       }
 
       const { user } = req;
-      const { months } = req.body;
+      const { durationDays } = req.body;
 
-      const pricePerMonth = 7085;
-      const totalCost = pricePerMonth * months;
+      // Map mobile package durations to months + price table (keeps discounts)
+      const pricingTable = {
+        30: { months: 1, cost: 7085 },
+        90: { months: 3, cost: 20000 },
+        180: { months: 6, cost: 38000 },
+        365: { months: 12, cost: 70000 },
+      };
+
+      const selected = pricingTable[durationDays];
+      if (!selected) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid MVP duration",
+          code: "INVALID_DURATION",
+        });
+      }
+
+      const { months, cost: totalCost } = selected;
       const currentCoins = user.gamification?.coins || 0;
 
       if (currentCoins < totalCost) {
@@ -232,7 +249,7 @@ router.post(
       // Deduct coins
       await user.deductCoins(totalCost);
 
-      // Activate MVP
+      // Activate MVP (expects months)
       await user.activateMVP(months);
 
       // Add credits sent for wealth level
@@ -246,6 +263,7 @@ router.post(
         success: true,
         details: {
           months,
+          durationDays,
           cost: totalCost,
         },
         ipAddress: req.ip,
@@ -257,6 +275,7 @@ router.post(
         message: `MVP activated for ${months} month(s)`,
         data: {
           months,
+          durationDays,
           cost: totalCost,
           expiresAt: user.gamification.mvpExpiresAt,
           remainingCoins: user.gamification.coins,

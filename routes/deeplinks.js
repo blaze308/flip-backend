@@ -9,6 +9,74 @@ const router = express.Router();
  */
 
 /**
+ * @route   GET /.well-known/assetlinks.json
+ * @desc    Serve Android app links configuration for deep linking
+ *          Required for Android App Links verification
+ *          When user clicks a link, Android will verify this file to open the app
+ * @access  Public
+ */
+router.get("/.well-known/assetlinks.json", (req, res) => {
+  console.log(
+    "📱 Android App Links config requested from:",
+    req.ip,
+    "User-Agent:",
+    req.get("User-Agent")
+  );
+
+  const assetlinks = [
+    {
+      relation: ["delegate_permission/common.handle_all_urls"],
+      target: {
+        namespace: "android_app",
+        package_name: "ancientplustech.ancient.flip",
+        // This SHA256 fingerprint must match the app's signing certificate
+        sha256_cert_fingerprints: [
+          "60:A4:63:12:61:2E:73:53:C5:D9:84:43:B3:38:12:14:2C:F6:F2:0D:0F:CA:60:D7:46:46:C7:C8:95:18:71:91",
+        ],
+      },
+    },
+  ];
+
+  // Set correct content type
+  res.set("Content-Type", "application/json");
+  res.json(assetlinks);
+});
+
+/**
+ * @route   GET /.well-known/apple-app-site-association
+ * @desc    Serve iOS app links configuration for deep linking
+ *          Required for Universal Links verification
+ *          When user clicks a link, iOS will verify this file to open the app
+ * @access  Public
+ */
+router.get("/.well-known/apple-app-site-association", (req, res) => {
+  console.log(
+    "🍎 iOS App Site Association requested from:",
+    req.ip,
+    "User-Agent:",
+    req.get("User-Agent")
+  );
+
+  const appSiteAssociation = {
+    applinks: {
+      apps: [],
+      details: [
+        {
+          // Replace TEAM_ID with your actual Apple Team ID from Apple Developer Account
+          appID: "TEAM_ID.ancientplustech.ancient.flip",
+          // These paths will be handled by the app instead of the browser
+          paths: ["/post/*", "/reel/*", "/user/*", "/profile/*"],
+        },
+      ],
+    },
+  };
+
+  // Set correct content type
+  res.set("Content-Type", "application/json");
+  res.json(appSiteAssociation);
+});
+
+/**
  * @route   GET /post/:postId
  * @desc    Serve post deep link with Open Graph meta tags
  * @access  Public
