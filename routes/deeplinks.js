@@ -282,7 +282,7 @@ function generateOpenGraphHTML(options) {
     <meta property="al:android:app_name" content="${appName}">
     <meta property="al:web:url" content="${url}">
     
-    <!-- Redirect to app stores -->
+    <!-- Redirect to app immediately -->
     <script>
         // Detect mobile device
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -290,18 +290,40 @@ function generateOpenGraphHTML(options) {
         const isAndroid = /Android/i.test(navigator.userAgent);
         
         if (isMobile) {
-            // Try to open the app
-            const deepLink = 'flip://open?url=${encodeURIComponent(url)}';
+            // Use standard deep link format with path structure
+            // Extract the path from the current URL (e.g., /post/123 from ${url})
+            const currentPath = new URL('${url}').pathname;
+            
+            // Try to open the app with direct path format
+            // The app will handle flip://post/123 or flip://reel/456
+            const deepLink = 'flip://' + currentPath;
+            
+            // Create a hidden iframe to attempt opening the app
+            // This is more reliable than window.location.href
+            const iframe = document.createElement('iframe');
+            iframe.src = deepLink;
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+            
+            // Also try direct navigation as fallback
             window.location.href = deepLink;
             
-            // Fallback to app store after 2 seconds if app doesn't open
+            // If app is not installed, show download buttons after 2.5 seconds
             setTimeout(() => {
-                if (isIOS) {
-                    window.location.href = '${appStoreUrl}';
-                } else if (isAndroid) {
-                    window.location.href = '${playStoreUrl}';
+                // Check if page is still visible (app didn't open)
+                if (document.hidden === false) {
+                    // Optionally redirect to store
+                    // Uncomment if you want auto-redirect:
+                    // if (isIOS) {
+                    //     window.location.href = '${appStoreUrl}';
+                    // } else if (isAndroid) {
+                    //     window.location.href = '${playStoreUrl}';
+                    // }
                 }
-            }, 2000);
+            }, 2500);
+        } else {
+            // Desktop - show preview
+            console.log('Desktop browser detected, showing preview');
         }
     </script>
     
