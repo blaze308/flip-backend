@@ -84,23 +84,27 @@ router.get("/.well-known/apple-app-site-association", (req, res) => {
 router.get("/post/:postId", async (req, res) => {
   try {
     const { postId } = req.params;
+    console.log("📱 Fetching post with ID:", postId);
 
-    // Fetch post data
-    const post = await Post.findById(postId).populate(
-      "author",
-      "displayName profile.username photoURL"
-    );
+    // Fetch post data - try by ID first, then by custom ID field
+    let post = await Post.findById(postId);
 
+    // If not found by MongoDB ID, try finding by custom post ID
     if (!post) {
-      return res.status(404).send(generateErrorPage("Post not found"));
+      post = await Post.findOne({ id: postId });
     }
 
-    const authorName =
-      post.author.displayName ||
-      post.author.profile?.username ||
-      "Unknown User";
-    const content = post.content || "";
-    const imageUrl = post.images?.[0] || post.author.photoURL || "";
+    if (!post) {
+      console.log("❌ Post not found with ID:", postId);
+      return res.status(404).send(generateErrorPage("Post not found"));
+    }
+    
+    console.log("✅ Post found:", post._id);
+
+    // Get author name from the post data
+    const authorName = post.username || post.author?.displayName || post.author?.name || "Unknown User";
+    const content = post.content || post.caption || "";
+    const imageUrl = post.images?.[0] || post.thumbnail || post.profileImage || "";
     const appUrl = process.env.APP_URL || "https://flip.app";
 
     const html = generateOpenGraphHTML({
