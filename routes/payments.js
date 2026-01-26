@@ -488,19 +488,24 @@ router.post(
 
       const { productId, purchaseToken, coinAmount } = req.body;
       const { user } = req;
-      const googlePlayPackageName = process.env.GOOGLE_PLAY_PACKAGE_NAME;
-      const googlePlayPrivateKey = process.env.GOOGLE_PLAY_PRIVATE_KEY;
 
-      if (!googlePlayPackageName || !googlePlayPrivateKey) {
-        console.error("Google Play credentials not configured");
-        return res.status(500).json({
+      // Check if this purchase token has already been used
+      const existingTransaction = await Transaction.findOne({
+        "payment.transactionId": purchaseToken,
+        "payment.method": "google_play",
+      });
+
+      if (existingTransaction) {
+        console.log(`⚠️ Duplicate Google Play purchase attempt: ${purchaseToken}`);
+        return res.status(400).json({
           success: false,
-          message: "Google Play verification not configured",
+          message: "This purchase has already been processed",
         });
       }
 
-      // TODO: Implement Google Play verification using androidpublisher API
-      // For now, simulate verification
+      // TODO: Implement actual Google Play verification using googleapis package
+      // For production, use Google Play Developer API to verify purchaseToken
+      // For now, basic validation
       const isVerified = purchaseToken && purchaseToken.length > 0;
 
       if (!isVerified) {
@@ -661,6 +666,220 @@ router.post(
       res.status(500).json({
         success: false,
         message: "Failed to verify purchase",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
+      });
+    }
+  }
+);
+
+/**
+ * @route   POST /api/payments/purchase-and-send-gift
+ * @desc    Purchase coins and automatically send a gift
+ * @access  Private
+ */
+router.post(
+  "/purchase-and-send-gift",
+  authenticateJWT,
+  requireAuth,
+  [
+    body("paymentMethod")
+      .isIn(["paystack", "google_play", "app_store", "ancient_flip_pay"])
+      .withMessage("Invalid payment method"),
+    body("coinPackageId")
+      .notEmpty()
+      .withMessage("Coin package ID is required"),
+    body("giftData")
+      .isObject()
+      .withMessage("Gift data is required"),
+    body("giftData.giftId")
+      .notEmpty()
+      .withMessage("Gift ID is required"),
+    body("giftData.receiverId")
+      .notEmpty()
+      .withMessage("Receiver ID is required"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const { paymentMethod, coinPackageId, giftData } = req.body;
+      const { user } = req;
+
+      // Map coin package IDs to amounts
+      const packageCoins = {
+        coins_8000: 8000,
+        coins_16000: 16000,
+        coins_64000: 64000,
+        coins_128000: 128000,
+        coins_320000: 320000,
+        coins_640000: 640000,
+        coins_800000: 800000,
+      };
+
+      const coinAmount = packageCoins[coinPackageId];
+      if (!coinAmount) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid coin package ID",
+        });
+      }
+
+      // Verify gift exists
+      const Gift = require("../models/Gift");
+      const gift = await Gift.findOne({ giftId: giftData.giftId, active: true });
+      if (!gift) {
+        return res.status(404).json({
+          success: false,
+          message: "Gift not found or inactive",
+        });
+      }
+
+      const quantity = giftData.quantity || 1;
+      const giftCost = gift.coins * quantity;
+
+      // Verify receiver exists
+      const User = require("../models/User");
+      const receiver = await User.findById(giftData.receiverId);
+      if (!receiver) {
+        return res.status(404).json({
+          success: false,
+          message: "Receiver not found",
+        });
+      }
+
+      // Step 1: Process payment based on method
+      let paymentSuccess = false;
+      let paymentReference = "";
+
+      if (paymentMethod === "ancient_flip_pay") {
+        // Use existing coins
+        const currentCoins = user.gamification?.coins || 0;
+        if (currentCoins < coinAmount) {
+          return res.status(400).json({
+            success: false,
+            message: "Insufficient coins in AncientFlip Pay",
+          });
+        }
+        paymentSuccess = true;
+        paymentReference = `ancient_pay_${Date.now()}`;
+      } else {
+        // For Paystack, Google Play, App Store - payment should be verified separately
+        // This endpoint assumes payment was already completed
+        return res.status(400).json({
+          success: false,
+          message: "For external payments, complete payment first then use /gifts/send",
+        });
+      }
+
+      if (!paymentSuccess) {
+        return res.status(400).json({
+          success: false,
+          message: "Payment failed",
+        });
+      }
+
+      // Step 2: Credit coins to user
+      const updatedUser = await User.findByIdAndUpdate(
+        user._id,
+        {
+          $inc: { "gamification.coins": coinAmount },
+        },
+        { new: true }
+      );
+
+      // Step 3: Record payment transaction
+      await Transaction.createTransaction({
+        userId: user._id,
+        type: "purchase",
+        currency: "coins",
+        amount: coinAmount,
+        description: `Purchased ${coinAmount} coins to send gift`,
+        payment: {
+          method: paymentMethod,
+          transactionId: paymentReference,
+          status: "completed",
+        },
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+
+      // Step 4: Send the gift
+      const GiftSent = require("../models/GiftSent");
+      const giftsSent = [];
+
+      for (let i = 0; i < quantity; i++) {
+        const giftSent = new GiftSent({
+          author: user._id,
+          authorId: user._id.toString(),
+          receiver: giftData.receiverId,
+          receiverId: giftData.receiverId,
+          gift: gift._id,
+          giftId: gift.giftId,
+          diamondsQuantity: gift.coins,
+          context: giftData.context || "live",
+          liveStreamId: giftData.contextId,
+        });
+
+        await giftSent.save();
+        giftsSent.push(giftSent);
+      }
+
+      // Step 5: Deduct gift cost
+      const finalUser = await User.findByIdAndUpdate(
+        user._id,
+        {
+          $inc: { "gamification.coins": -giftCost },
+        },
+        { new: true }
+      );
+
+      // Step 6: Record gift transaction
+      await Transaction.createTransaction({
+        userId: user._id,
+        type: "gift_sent",
+        currency: "coins",
+        amount: -giftCost,
+        description: `Sent ${quantity}x ${gift.name} to ${receiver.displayName || receiver.username}`,
+        metadata: {
+          giftId: gift.giftId,
+          giftName: gift.name,
+          receiverId: giftData.receiverId,
+          quantity: quantity,
+          purchasedCoins: coinAmount,
+        },
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+
+      console.log(
+        `🎁💰 Purchase and send: ${user._id} bought ${coinAmount} coins, sent ${quantity}x ${gift.name} (${giftCost} coins)`
+      );
+
+      res.json({
+        success: true,
+        message: "Coins purchased and gift sent successfully",
+        data: {
+          coinsPurchased: coinAmount,
+          giftsSent: giftsSent,
+          giftCost: giftCost,
+          finalBalance: finalUser.gamification.coins,
+        },
+      });
+    } catch (error) {
+      console.error("Purchase and send gift error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to purchase and send gift",
         error:
           process.env.NODE_ENV === "development"
             ? error.message

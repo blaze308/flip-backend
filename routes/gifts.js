@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { query, validationResult } = require("express-validator");
+const { query, body, validationResult } = require("express-validator");
 const GiftSent = require("../models/GiftSent");
 const Gift = require("../models/Gift");
 const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
@@ -327,6 +327,208 @@ router.get(
       res.status(500).json({
         success: false,
         message: "Failed to retrieve received gifts",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
+      });
+    }
+  }
+);
+
+/**
+ * @route   POST /api/gifts/send
+ * @desc    Send a gift to another user
+ * @access  Private
+ */
+router.post(
+  "/send",
+  authenticateJWT,
+  requireAuth,
+  [
+    body("giftId")
+      .notEmpty()
+      .withMessage("Gift ID is required"),
+    body("receiverId")
+      .notEmpty()
+      .withMessage("Receiver ID is required"),
+    body("context")
+      .optional()
+      .isIn(["live", "profile", "chat", "post"])
+      .withMessage("Invalid context"),
+    body("contextId")
+      .optional()
+      .isString()
+      .withMessage("Context ID must be a string"),
+    body("message")
+      .optional()
+      .isString()
+      .withMessage("Message must be a string"),
+    body("quantity")
+      .optional()
+      .isInt({ min: 1, max: 99 })
+      .withMessage("Quantity must be between 1 and 99"),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const { giftId, receiverId, context = "live", contextId, message, quantity = 1 } = req.body;
+      const { user } = req;
+
+      // Prevent sending gift to self
+      if (receiverId === user._id.toString()) {
+        return res.status(400).json({
+          success: false,
+          message: "You cannot send a gift to yourself",
+        });
+      }
+
+      // Find the gift
+      const gift = await Gift.findOne({ giftId: giftId, active: true });
+      if (!gift) {
+        return res.status(404).json({
+          success: false,
+          message: "Gift not found or inactive",
+        });
+      }
+
+      // Calculate total cost
+      const totalCost = gift.coins * quantity;
+
+      // Check if user has enough coins
+      const User = require("../models/User");
+      const sender = await User.findById(user._id);
+
+      if (!sender) {
+        return res.status(404).json({
+          success: false,
+          message: "Sender not found",
+        });
+      }
+
+      const currentCoins = sender.gamification?.coins || 0;
+
+      if (currentCoins < totalCost) {
+        return res.status(400).json({
+          success: false,
+          message: "Insufficient coins",
+          data: {
+            required: totalCost,
+            current: currentCoins,
+            shortfall: totalCost - currentCoins,
+          },
+        });
+      }
+
+      // Verify receiver exists
+      const receiver = await User.findById(receiverId);
+      if (!receiver) {
+        return res.status(404).json({
+          success: false,
+          message: "Receiver not found",
+        });
+      }
+
+      // Deduct coins from sender
+      sender.gamification.coins -= totalCost;
+      await sender.save();
+
+      // Create gift sent records (one for each quantity)
+      const giftsSent = [];
+      for (let i = 0; i < quantity; i++) {
+        const giftSent = new GiftSent({
+          author: user._id,
+          authorId: user._id.toString(),
+          receiver: receiverId,
+          receiverId: receiverId,
+          gift: gift._id,
+          giftId: gift.giftId,
+          diamondsQuantity: gift.coins,
+          context: context,
+          liveStreamId: contextId,
+        });
+
+        await giftSent.save();
+        giftsSent.push(giftSent);
+      }
+
+      // Record transaction
+      const Transaction = require("../models/Transaction");
+      await Transaction.createTransaction({
+        userId: user._id,
+        type: "gift_sent",
+        currency: "coins",
+        amount: -totalCost,
+        description: `Sent ${quantity}x ${gift.name} to ${receiver.displayName || receiver.username}`,
+        metadata: {
+          giftId: gift.giftId,
+          giftName: gift.name,
+          receiverId: receiverId,
+          quantity: quantity,
+          context: context,
+        },
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+
+      // Update Rankings (Rich & Host)
+      try {
+        const User = require("../models/User");
+        // Sender's wealth increase
+        await User.findByIdAndUpdate(user._id, { $inc: { "gamification.creditsSent": totalCost } });
+        // Receiver's gifts received increase
+        await User.findByIdAndUpdate(receiverId, { $inc: { "gamification.giftsReceived": totalCost } });
+      } catch (rankError) {
+        console.error("Error updating rankings:", rankError);
+      }
+
+      // Notify via Socket.IO
+      try {
+        const { notifyGiftSent } = require("../services/gift_notifications");
+        notifyGiftSent(
+          {
+            giftId: gift.giftId,
+            giftName: gift.name,
+            giftIcon: gift.iconUrl,
+            animation: gift.svgaUrl || gift.fileUrl,
+            coins: gift.coins,
+            quantity: quantity,
+          },
+          sender,
+          receiver,
+          context,
+          contextId
+        );
+      } catch (notifyError) {
+        console.error("Error sending gift notification:", notifyError);
+      }
+
+      console.log(
+        `🎁 Gift sent: ${user._id} → ${receiverId} | ${quantity}x ${gift.name} (${totalCost} coins)`
+      );
+
+      res.json({
+        success: true,
+        message: "Gift sent successfully",
+        data: {
+          giftsSent: giftsSent,
+          totalCost: totalCost,
+          remainingCoins: sender.gamification.coins,
+        },
+      });
+    } catch (error) {
+      console.error("Send gift error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to send gift",
         error:
           process.env.NODE_ENV === "development"
             ? error.message

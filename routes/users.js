@@ -61,6 +61,51 @@ router.get("/profile", authenticateJWT, requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /users/check-username
+ *
+ * Check if a username is available
+ */
+router.get("/check-username", async (req, res) => {
+  try {
+    const { username } = req.query;
+
+    if (!username) {
+      return res.status(400).json({
+        success: false,
+        message: "Username is required",
+      });
+    }
+
+    // Basic regex check (similar to frontend)
+    if (!/^[a-zA-Z0-9._]{3,20}$/.test(username)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid username format",
+      });
+    }
+
+    // Check if any user has this username
+    // Note: We search in the profile.username field
+    const existingUser = await User.findOne({
+      "profile.username": { $regex: new RegExp(`^${username}$`, "i") },
+      deletedAt: null,
+    });
+
+    res.json({
+      success: true,
+      available: !existingUser,
+      message: existingUser ? "Username is already taken" : "Username is available",
+    });
+  } catch (error) {
+    console.error("Check username error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to check username availability",
+    });
+  }
+});
+
+/**
  * PUT /users/profile
  *
  * Update user profile information
@@ -1073,9 +1118,8 @@ router.get("/following", authenticateJWT, async (req, res) => {
       displayName: followingUser.displayName,
       username:
         followingUser.username ||
-        `${followingUser.profile?.firstName || ""} ${
-          followingUser.profile?.lastName || ""
-        }`.trim() ||
+        `${followingUser.profile?.firstName || ""} ${followingUser.profile?.lastName || ""
+          }`.trim() ||
         followingUser.displayName,
       photoURL: followingUser.photoURL,
       avatar: followingUser.photoURL,
@@ -1128,9 +1172,8 @@ router.get("/followers", authenticateJWT, async (req, res) => {
       displayName: followerUser.displayName,
       username:
         followerUser.username ||
-        `${followerUser.profile?.firstName || ""} ${
-          followerUser.profile?.lastName || ""
-        }`.trim() ||
+        `${followerUser.profile?.firstName || ""} ${followerUser.profile?.lastName || ""
+          }`.trim() ||
         followerUser.displayName,
       photoURL: followerUser.photoURL,
       avatar: followerUser.photoURL,

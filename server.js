@@ -54,6 +54,7 @@ const socialRoutes = require("./routes/social");
 
 // Import cron jobs
 const { startVIPDailyCoinsJob } = require("./cron/vipDailyCoins");
+const { startMVPDailyRewardsJob } = require("./cron/mvpDailyRewards");
 const { startGhostCleanupJob } = require("./cron/ghostLiveCleanup");
 
 // Initialize Express app
@@ -75,6 +76,7 @@ const initializeServices = async () => {
 
     // Start cron jobs
     startVIPDailyCoinsJob();
+    startMVPDailyRewardsJob();
     startGhostCleanupJob();
 
     console.log("✅ All services initialized successfully");
@@ -302,7 +304,7 @@ Ready to serve your Flutter app! 🎉
     // Initialize Socket.IO
     const { initializeSocket } = require("./config/socket");
     const io = initializeSocket(server);
-    
+
     // Store io instance in app for routes to access
     app.set("io", io);
 

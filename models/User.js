@@ -203,6 +203,13 @@ const userSchema = new mongoose.Schema(
           message: "Please provide a valid cover photo URL",
         },
       },
+      socialLinks: {
+        instagram: String,
+        tiktok: String,
+        twitter: String,
+        youtube: String,
+        facebook: String,
+      },
       preferences: {
         language: {
           type: String,
@@ -747,32 +754,35 @@ userSchema.methods.calculateLiveLevel = function () {
   return 0;
 };
 
-userSchema.methods.activateVIP = function (tier, months) {
+userSchema.methods.activateVIP = async function (tier, months) {
   if (!this.gamification) this.gamification = {};
 
   const now = new Date();
   const expiresAt = new Date(now);
   expiresAt.setMonth(expiresAt.getMonth() + months);
 
-  // Reset all VIP tiers first
-  this.gamification.isNormalVip = false;
-  this.gamification.isSuperVip = false;
-  this.gamification.isDiamondVip = false;
-
-  // Set the selected tier
-  if (tier === "normal") {
-    this.gamification.isNormalVip = true;
-  } else if (tier === "super") {
-    this.gamification.isSuperVip = true;
-  } else if (tier === "diamond") {
-    this.gamification.isDiamondVip = true;
-  }
-
+  // Update legacy fields
+  this.gamification.isNormalVip = tier === "normal";
+  this.gamification.isSuperVip = tier === "super";
+  this.gamification.isDiamondVip = tier === "diamond";
   this.gamification.vipExpiresAt = expiresAt;
+
+  // Create Subscription record
+  const Subscription = mongoose.model("Subscription");
+  await Subscription.create({
+    userId: this._id,
+    type: "vip",
+    tier: tier,
+    startDate: now,
+    endDate: expiresAt,
+    paymentMethod: "coins", // Default for now, can be updated from route
+    status: "active"
+  });
+
   return this.save();
 };
 
-userSchema.methods.activateMVP = function (months) {
+userSchema.methods.activateMVP = async function (months) {
   if (!this.gamification) this.gamification = {};
 
   const now = new Date();
@@ -781,10 +791,22 @@ userSchema.methods.activateMVP = function (months) {
 
   this.gamification.isMVP = true;
   this.gamification.mvpExpiresAt = expiresAt;
+
+  // Create Subscription record
+  const Subscription = mongoose.model("Subscription");
+  await Subscription.create({
+    userId: this._id,
+    type: "mvp",
+    startDate: now,
+    endDate: expiresAt,
+    paymentMethod: "coins",
+    status: "active"
+  });
+
   return this.save();
 };
 
-userSchema.methods.activateGuardian = function (type, months, targetUserId) {
+userSchema.methods.activateGuardian = async function (type, months, targetUserId) {
   if (!this.gamification) this.gamification = {};
 
   const now = new Date();
@@ -794,6 +816,20 @@ userSchema.methods.activateGuardian = function (type, months, targetUserId) {
   this.gamification.guardianType = type;
   this.gamification.guardianExpiresAt = expiresAt;
   this.gamification.guardingUserId = targetUserId;
+
+  // Create Subscription record
+  const Subscription = mongoose.model("Subscription");
+  await Subscription.create({
+    userId: this._id,
+    type: "guardian",
+    tier: type,
+    targetUserId: targetUserId,
+    startDate: now,
+    endDate: expiresAt,
+    paymentMethod: "coins",
+    status: "active"
+  });
+
   return this.save();
 };
 
@@ -821,13 +857,30 @@ userSchema.methods.addExperience = function (xp) {
   return this.save();
 };
 
-userSchema.methods.checkAndExpireSubscriptions = function () {
+userSchema.methods.checkAndExpireSubscriptions = async function () {
   if (!this.gamification) return this.save();
 
   const now = new Date();
   let changed = false;
 
-  // Check VIP expiration
+  // Sync with Subscription model and expire old ones
+  const Subscription = mongoose.model("Subscription");
+
+  // Find all active subscriptions that should have expired
+  const expiredSubs = await Subscription.find({
+    userId: this._id,
+    status: "active",
+    endDate: { $lt: now }
+  });
+
+  if (expiredSubs.length > 0) {
+    for (const sub of expiredSubs) {
+      sub.status = "expired";
+      await sub.save();
+    }
+  }
+
+  // Check VIP expiration (Legacy support)
   if (
     this.gamification.vipExpiresAt &&
     this.gamification.vipExpiresAt < now
@@ -839,14 +892,14 @@ userSchema.methods.checkAndExpireSubscriptions = function () {
     changed = true;
   }
 
-  // Check MVP expiration
+  // Check MVP expiration (Legacy support)
   if (this.gamification.mvpExpiresAt && this.gamification.mvpExpiresAt < now) {
     this.gamification.isMVP = false;
     this.gamification.mvpExpiresAt = null;
     changed = true;
   }
 
-  // Check Guardian expiration
+  // Check Guardian expiration (Legacy support)
   if (
     this.gamification.guardianExpiresAt &&
     this.gamification.guardianExpiresAt < now

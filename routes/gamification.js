@@ -77,6 +77,35 @@ router.get("/levels", authenticateJWT, requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/gamification/subscriptions
+ *
+ * Get user's subscription history
+ */
+router.get("/subscriptions", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const { user } = req;
+    const Subscription = require("../models/Subscription");
+
+    const subscriptions = await Subscription.find({ userId: user._id })
+      .sort({ createdAt: -1 })
+      .populate("targetUserId", "displayName photoURL username");
+
+    res.json({
+      success: true,
+      data: {
+        subscriptions,
+      },
+    });
+  } catch (error) {
+    console.error("Get subscriptions error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve subscription history",
+    });
+  }
+});
+
+/**
  * POST /api/gamification/vip/purchase
  *
  * Purchase VIP subscription

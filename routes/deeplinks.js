@@ -86,12 +86,12 @@ router.get("/post/:postId", async (req, res) => {
     const { postId } = req.params;
     console.log("📱 Fetching post with ID:", postId);
 
-    // Fetch post data - try by ID first, then by custom ID field
-    let post = await Post.findById(postId);
+    // Fetch post data with user information
+    let post = await Post.findById(postId).populate("userId");
 
     // If not found by MongoDB ID, try finding by custom post ID
     if (!post) {
-      post = await Post.findOne({ id: postId });
+      post = await Post.findOne({ id: postId }).populate("userId");
     }
 
     if (!post) {
@@ -101,10 +101,21 @@ router.get("/post/:postId", async (req, res) => {
     
     console.log("✅ Post found:", post._id);
 
-    // Get author name from the post data
-    const authorName = post.username || post.author?.displayName || post.author?.name || "Unknown User";
-    const content = post.content || post.caption || "";
-    const imageUrl = post.images?.[0] || post.thumbnail || post.profileImage || "";
+    // Get author name from the populated user data
+    let authorName = "Unknown User";
+    if (post.userId) {
+      // Try profile.username first (preferred), then displayName, then fallback
+      authorName = 
+        (post.userId.profile && post.userId.profile.username) || 
+        post.userId.displayName || 
+        "Unknown User";
+      console.log("✅ Author found:", authorName);
+    } else {
+      console.log("⚠️ Post has no userId reference");
+    }
+    
+    const content = post.content || "";
+    const imageUrl = post.imageUrls?.[0] || post.videoThumbnail || "";
     const appUrl = process.env.APP_URL || "https://flip.app";
 
     const html = generateOpenGraphHTML({
@@ -138,22 +149,28 @@ router.get("/reel/:reelId", async (req, res) => {
     const { reelId } = req.params;
 
     // Fetch reel/post data (assuming reels are stored as posts with video)
-    const reel = await Post.findById(reelId).populate(
-      "author",
-      "displayName profile.username photoURL"
-    );
+    const reel = await Post.findById(reelId).populate("userId");
 
     if (!reel) {
       return res.status(404).send(generateErrorPage("Reel not found"));
     }
 
-    const authorName =
-      reel.author.displayName ||
-      reel.author.profile?.username ||
-      "Unknown User";
+    // Get author name from the populated user data
+    let authorName = "Unknown User";
+    if (reel.userId) {
+      // Try profile.username first (preferred), then displayName, then fallback
+      authorName = 
+        (reel.userId.profile && reel.userId.profile.username) || 
+        reel.userId.displayName || 
+        "Unknown User";
+      console.log("✅ Author found:", authorName);
+    } else {
+      console.log("⚠️ Reel has no userId reference");
+    }
+    
     const caption = reel.content || "";
-    const videoUrl = reel.video || "";
-    const thumbnailUrl = reel.thumbnail || reel.author.photoURL || "";
+    const videoUrl = reel.videoUrl || "";
+    const thumbnailUrl = reel.videoThumbnail || (reel.userId && reel.userId.photoURL) || "";
     const appUrl = process.env.APP_URL || "https://flip.app";
 
     const html = generateOpenGraphHTML({

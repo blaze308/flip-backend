@@ -59,7 +59,7 @@ router.get(
       const posts = await query
         .populate(
           "userId",
-          "displayName photoURL profile.username profile.firstName profile.lastName"
+          "displayName photoURL gamification.isMVP profile.username profile.firstName profile.lastName"
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -74,9 +74,8 @@ router.get(
         username:
           post.userId?.profile?.username ||
           post.userId?.displayName ||
-          `${post.userId?.profile?.firstName || ""} ${
-            post.userId?.profile?.lastName || ""
-          }`.trim() ||
+          `${post.userId?.profile?.firstName || ""} ${post.userId?.profile?.lastName || ""
+            }`.trim() ||
           "Unknown User",
         userAvatar: post.userId?.photoURL,
       }));
@@ -157,9 +156,8 @@ router.get("/public/:postId", async (req, res) => {
       username:
         post.userId?.profile?.username ||
         post.userId?.displayName ||
-        `${post.userId?.profile?.firstName || ""} ${
-          post.userId?.profile?.lastName || ""
-        }`.trim() ||
+        `${post.userId?.profile?.firstName || ""} ${post.userId?.profile?.lastName || ""
+          }`.trim() ||
         "Unknown User",
       userAvatar: post.userId?.photoURL,
     };
@@ -254,7 +252,7 @@ router.get(
       const posts = await query
         .populate(
           "userId",
-          "displayName photoURL profile.username profile.firstName profile.lastName"
+          "displayName photoURL gamification.isMVP profile.username profile.firstName profile.lastName"
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -288,9 +286,8 @@ router.get(
           username:
             post.userId?.profile?.username ||
             post.userId?.displayName ||
-            `${post.userId?.profile?.firstName || ""} ${
-              post.userId?.profile?.lastName || ""
-            }`.trim() ||
+            `${post.userId?.profile?.firstName || ""} ${post.userId?.profile?.lastName || ""
+              }`.trim() ||
             "Unknown User",
           userAvatar: post.userId?.photoURL,
         };
@@ -402,7 +399,7 @@ router.get(
       const posts = await query
         .populate(
           "userId",
-          "displayName photoURL profile.username profile.firstName profile.lastName"
+          "displayName photoURL gamification.isMVP profile.username profile.firstName profile.lastName"
         )
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -421,9 +418,8 @@ router.get(
         username:
           post.userId?.profile?.username ||
           post.userId?.displayName ||
-          `${post.userId?.profile?.firstName || ""} ${
-            post.userId?.profile?.lastName || ""
-          }`.trim() ||
+          `${post.userId?.profile?.firstName || ""} ${post.userId?.profile?.lastName || ""
+            }`.trim() ||
           "Unknown User",
         userAvatar: post.userId?.photoURL,
       }));
@@ -608,9 +604,8 @@ router.post(
         username:
           post.userId?.profile?.username ||
           post.userId?.displayName ||
-          `${post.userId?.profile?.firstName || ""} ${
-            post.userId?.profile?.lastName || ""
-          }`.trim() ||
+          `${post.userId?.profile?.firstName || ""} ${post.userId?.profile?.lastName || ""
+            }`.trim() ||
           "Unknown User",
         userAvatar: post.userId?.photoURL,
       };
@@ -723,9 +718,8 @@ router.get("/:postId", authenticateJWT, requireAuth, async (req, res) => {
       username:
         post.userId?.profile?.username ||
         post.userId?.displayName ||
-        `${post.userId?.profile?.firstName || ""} ${
-          post.userId?.profile?.lastName || ""
-        }`.trim() ||
+        `${post.userId?.profile?.firstName || ""} ${post.userId?.profile?.lastName || ""
+          }`.trim() ||
         "Unknown User",
       userAvatar: post.userId?.photoURL,
     };
@@ -867,9 +861,8 @@ router.put(
         username:
           post.userId?.profile?.username ||
           post.userId?.displayName ||
-          `${post.userId?.profile?.firstName || ""} ${
-            post.userId?.profile?.lastName || ""
-          }`.trim() ||
+          `${post.userId?.profile?.firstName || ""} ${post.userId?.profile?.lastName || ""
+            }`.trim() ||
           "Unknown User",
         userAvatar: post.userId?.photoURL,
       };
