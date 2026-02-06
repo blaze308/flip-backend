@@ -129,7 +129,7 @@ router.get("/post/:postId", async (req, res) => {
         process.env.APP_STORE_URL || "https://apps.apple.com/app/flip",
       playStoreUrl:
         process.env.PLAY_STORE_URL ||
-        "https://play.google.com/store/apps/details?id=com.flip.app",
+        "https://play.google.com/store/apps/details?id=ancientplustech.ancient.flip",
     });
 
     res.send(html);
@@ -186,7 +186,7 @@ router.get("/reel/:reelId", async (req, res) => {
         process.env.APP_STORE_URL || "https://apps.apple.com/app/flip",
       playStoreUrl:
         process.env.PLAY_STORE_URL ||
-        "https://play.google.com/store/apps/details?id=com.flip.app",
+        "https://play.google.com/store/apps/details?id=ancientplustech.ancient.flip",
     });
 
     res.send(html);
@@ -229,7 +229,7 @@ router.get("/user/:userId", async (req, res) => {
         process.env.APP_STORE_URL || "https://apps.apple.com/app/flip",
       playStoreUrl:
         process.env.PLAY_STORE_URL ||
-        "https://play.google.com/store/apps/details?id=com.flip.app",
+        "https://play.google.com/store/apps/details?id=ancientplustech.ancient.flip",
     });
 
     res.send(html);
@@ -295,7 +295,7 @@ function generateOpenGraphHTML(options) {
     <meta property="al:android:url" content="flip://open?url=${encodeURIComponent(
       url
     )}">
-    <meta property="al:android:package" content="com.flip.app">
+    <meta property="al:android:package" content="ancientplustech.ancient.flip">
     <meta property="al:android:app_name" content="${appName}">
     <meta property="al:web:url" content="${url}">
     

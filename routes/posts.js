@@ -223,10 +223,15 @@ router.get(
       const skip = (page - 1) * limit;
 
       // Build query for feed: public posts + private posts from followed users
+      // Exclude posts from blocked users
+      const blockedUserIds = user.blockedUsers || [];
+      
       let query = Post.find({
         isActive: true,
         deletedAt: null,
         moderationStatus: "approved",
+        // Exclude posts from blocked users
+        userId: { $nin: blockedUserIds },
         $or: [
           // Public posts from everyone
           { isPublic: true },

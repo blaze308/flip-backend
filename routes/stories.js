@@ -297,17 +297,23 @@ router.get(
   async (req, res) => {
     try {
       const { limit = 50, offset = 0 } = req.query;
+      const { user } = req;
 
       // Get user's relationships
       const { friends, closeFriends } = await getUserRelationships(
-        req.user._id
+        user._id
       );
       const followingIds = []; // TODO: Get following list from user relationships
+
+      // Exclude stories from blocked users
+      const blockedUserIds = user.blockedUsers || [];
 
       // Build filter for stories (EXCLUDE current user's stories - they see it in "Your Story" button)
       const filter = {
         isActive: true,
         expiresAt: { $gt: new Date() },
+        // Exclude stories from blocked users
+        userId: { $nin: blockedUserIds },
         $or: [
           // Public stories from anyone (including current user)
           { privacy: "public" },
@@ -324,7 +330,7 @@ router.get(
           // Custom privacy where user is in customViewers
           {
             privacy: "custom",
-            customViewers: req.user._id,
+            customViewers: user._id,
           },
         ],
       };

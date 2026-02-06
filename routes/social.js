@@ -249,6 +249,95 @@ router.get("/visits/visited", authenticateJWT, requireAuth, async (req, res) => 
   }
 });
 
+// @route   POST /api/social/block/:userId
+// @desc    Block a user
+// @access  Private
+router.post("/block/:userId", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const { user } = req;
+    const { userId } = req.params;
+
+    if (userId === user._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot block yourself",
+      });
+    }
+
+    // Check if target user exists
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Check if already blocked
+    if (user.blockedUsers && user.blockedUsers.includes(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "User is already blocked",
+      });
+    }
+
+    // Block the user
+    await user.blockUser(userId);
+
+    // Notify admin/developer about the block (for moderation purposes)
+    // Log the block action for review
+    console.log(`[BLOCK ACTION] User ${user._id} (${user.displayName || user.email}) blocked user ${userId} (${targetUser.displayName || targetUser.email})`);
+
+    // TODO: Send notification to admin/moderation team
+    // This could be done via email, webhook, or admin dashboard notification
+
+    res.json({
+      success: true,
+      message: "User blocked successfully. Their content will be removed from your feed.",
+    });
+  } catch (error) {
+    console.error("Block user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to block user",
+      error: process.env.NODE_ENV === "development" ? error.message : "Internal server error",
+    });
+  }
+});
+
+// @route   POST /api/social/unblock/:userId
+// @desc    Unblock a user
+// @access  Private
+router.post("/unblock/:userId", authenticateJWT, requireAuth, async (req, res) => {
+  try {
+    const { user } = req;
+    const { userId } = req.params;
+
+    // Check if user is blocked
+    if (!user.blockedUsers || !user.blockedUsers.includes(userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "User is not blocked",
+      });
+    }
+
+    // Unblock the user
+    await user.unblockUser(userId);
+
+    res.json({
+      success: true,
+      message: "User unblocked successfully",
+    });
+  } catch (error) {
+    console.error("Unblock user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to unblock user",
+      error: process.env.NODE_ENV === "development" ? error.message : "Internal server error",
+    });
+  }
+});
+
 // @route   GET /api/social/blacklist
 // @desc    Get blocked users list
 // @access  Private
