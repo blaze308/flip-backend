@@ -113,9 +113,14 @@ router.post(
         if (provider === "google.com" || provider === "apple.com") {
           // OAuth users: use displayName (remove spaces, make lowercase)
           const displayName = firebaseUser.name || firebaseUser.display_name;
-          username = displayName
-            ? displayName.replace(/\s+/g, "_").toLowerCase().substring(0, 20)
-            : firebaseUser.email?.split("@")[0] || `user_${Date.now()}`;
+          if (displayName) {
+            username = displayName.replace(/\s+/g, "_").toLowerCase().substring(0, 20);
+          } else if (firebaseUser.email) {
+            username = firebaseUser.email.split("@")[0];
+          } else {
+            // Apple Sign In may not provide email - generate unique username
+            username = `user_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+          }
         } else if (firebaseUser.email) {
           // Email users: use email username part (frontend will have sent displayName as username)
           username =
@@ -138,9 +143,12 @@ router.post(
           counter++;
         }
 
+        // For Apple Sign In, email may be null - handle gracefully
+        const userEmail = firebaseUser.email || null;
+        
         user = new User({
           firebaseUid: firebaseUser.uid,
-          email: firebaseUser.email,
+          email: userEmail, // Can be null for Apple Sign In
           displayName: firebaseUser.name || firebaseUser.display_name,
           phoneNumber: firebaseUser.phone_number,
           photoURL: firebaseUser.picture,

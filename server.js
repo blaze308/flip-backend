@@ -8,6 +8,7 @@ const compression = require("compression");
 // Import configurations
 const { connectDB, checkDBHealth } = require("./config/database");
 const { initializeFirebase } = require("./config/firebase");
+const { initializeEmail } = require("./config/email");
 
 // Import middleware
 const {
@@ -70,6 +71,9 @@ const initializeServices = async () => {
 
     // Initialize Firebase Admin SDK
     initializeFirebase();
+
+    // Initialize Email Service
+    initializeEmail();
 
     // Connect to MongoDB
     await connectDB();

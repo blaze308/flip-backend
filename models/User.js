@@ -24,11 +24,12 @@ const userSchema = new mongoose.Schema(
     email: {
       type: String,
       required: function () {
-        // Email is required unless user signed up with phone only
+        // Email is required unless user signed up with phone only or Apple Sign In
+        // Apple Sign In may not provide email on first sign-in
         return (
-          !this.phoneNumber ||
-          this.providers.includes("password") ||
-          this.providers.includes("google.com")
+          !this.phoneNumber &&
+          (this.providers.includes("password") ||
+          (this.providers.includes("google.com") && !this.providers.includes("apple.com")))
         );
       },
       lowercase: true,

@@ -285,11 +285,13 @@ router.post("/block/:userId", authenticateJWT, requireAuth, async (req, res) => 
     await user.blockUser(userId);
 
     // Notify admin/developer about the block (for moderation purposes)
-    // Log the block action for review
-    console.log(`[BLOCK ACTION] User ${user._id} (${user.displayName || user.email}) blocked user ${userId} (${targetUser.displayName || targetUser.email})`);
-
-    // TODO: Send notification to admin/moderation team
-    // This could be done via email, webhook, or admin dashboard notification
+    try {
+      const { notifyUserBlocked } = require("../services/admin_notification_service");
+      await notifyUserBlocked(user, targetUser);
+    } catch (notificationError) {
+      // Log but don't fail the block action if notification fails
+      console.error("Failed to send admin notification for block:", notificationError);
+    }
 
     res.json({
       success: true,
