@@ -62,6 +62,7 @@ router.get(
       .optional()
       .isLength({ min: 1, max: 100 })
       .withMessage("Search query must be between 1 and 100 characters"),
+    query("includeArchived").optional().isBoolean().toBoolean(),
   ],
   async (req, res) => {
     try {
@@ -75,12 +76,12 @@ router.get(
       }
 
       const { user } = req;
-      const { page = 1, limit = 20, search } = req.query;
+      const { page = 1, limit = 20, search, includeArchived = false } = req.query;
       const skip = (page - 1) * limit;
 
       let chats;
       if (search) {
-        chats = await Chat.searchChats(user._id, search)
+        chats = await Chat.searchChats(user._id, search, includeArchived)
           .limit(parseInt(limit))
           .skip(skip)
           .populate(
@@ -92,7 +93,7 @@ router.get(
             "displayName profile.username email"
           );
       } else {
-        chats = await Chat.findActiveChatsForUser(user._id)
+        chats = await Chat.findActiveChatsForUser(user._id, includeArchived)
           .limit(parseInt(limit))
           .skip(skip)
           .populate(
@@ -203,6 +204,142 @@ router.get(
       res.status(500).json({
         success: false,
         message: "Failed to fetch chat",
+        error: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * @route   PATCH /api/chats/:chatId
+ * @desc    Update chat settings for user (archive, pin, mute)
+ * @access  Private
+ */
+router.patch(
+  "/:chatId",
+  authenticateJWT,
+  requireAuth,
+  [
+    param("chatId").isMongoId().withMessage("Invalid chat ID"),
+    body("archive").optional().isBoolean().toBoolean(),
+    body("pin").optional().isBoolean().toBoolean(),
+    body("mute").optional().isBoolean().toBoolean(),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const { user } = req;
+      const { chatId } = req.params;
+      const { archive, pin, mute } = req.body;
+
+      const chat = await Chat.findById(chatId);
+      if (!chat || !chat.isMember(user._id)) {
+        return res.status(404).json({
+          success: false,
+          message: "Chat not found",
+        });
+      }
+
+      const member = chat.getMember(user._id);
+      if (!member) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not a member of this chat",
+        });
+      }
+
+      if (typeof archive === "boolean") member.isArchived = archive;
+      if (typeof pin === "boolean") member.isPinned = pin;
+      if (typeof mute === "boolean") {
+        if (!member.notifications) member.notifications = {};
+        member.notifications.enabled = !mute;
+      }
+
+      await chat.save();
+
+      emitChatUpdate(chatId, "settings_updated", {
+        userId: user._id,
+        archive: member.isArchived,
+        pin: member.isPinned,
+        mute: !member.notifications?.enabled,
+      });
+
+      res.json({
+        success: true,
+        message: "Chat settings updated",
+        data: {
+          archive: member.isArchived,
+          pin: member.isPinned,
+          mute: !member.notifications?.enabled,
+        },
+      });
+    } catch (error) {
+      console.error("Update chat settings error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update chat settings",
+        error: error.message,
+      });
+    }
+  }
+);
+
+/**
+ * @route   DELETE /api/chats/:chatId
+ * @desc    Delete/leave chat (removes user from chat or soft-deletes for direct)
+ * @access  Private
+ */
+router.delete(
+  "/:chatId",
+  authenticateJWT,
+  requireAuth,
+  [param("chatId").isMongoId().withMessage("Invalid chat ID")],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const { user } = req;
+      const { chatId } = req.params;
+
+      const chat = await Chat.findById(chatId);
+      if (!chat || !chat.isMember(user._id)) {
+        return res.status(404).json({
+          success: false,
+          message: "Chat not found",
+        });
+      }
+
+      await chat.removeMember(user._id);
+
+      emitChatUpdate(chatId, "member_left", {
+        userId: user._id,
+        username: user.displayName || user.profile?.username,
+      });
+
+      res.json({
+        success: true,
+        message: "Chat deleted successfully",
+      });
+    } catch (error) {
+      console.error("Delete chat error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete chat",
         error: error.message,
       });
     }

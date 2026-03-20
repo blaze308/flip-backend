@@ -1,5 +1,5 @@
 const express = require("express");
-const { body, validationResult } = require("express-validator");
+const { body, query, validationResult } = require("express-validator");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const Session = require("../models/Session");
@@ -212,6 +212,26 @@ router.put(
       .isBoolean()
       .withMessage("Show phone preference must be boolean"),
 
+    body("profile.preferences.privacy.messageWhoCan")
+      .optional()
+      .isIn(["everyone", "followers", "friends", "nobody"])
+      .withMessage("Invalid message privacy value"),
+
+    body("profile.preferences.privacy.callWhoCan")
+      .optional()
+      .isIn(["everyone", "followers", "friends", "nobody"])
+      .withMessage("Invalid call privacy value"),
+
+    body("profile.preferences.privacy.invisibleMode")
+      .optional()
+      .isBoolean()
+      .withMessage("Invisible mode must be boolean"),
+
+    body("profile.preferences.currency")
+      .optional()
+      .isLength({ min: 2, max: 10 })
+      .withMessage("Currency must be 2-10 characters"),
+
     body("photoURL")
       .optional()
       .isURL()
@@ -369,6 +389,7 @@ router.put(
             user.profile.preferences = {
               language: "en",
               timezone: "UTC",
+              currency: "USD",
               notifications: {
                 email: true,
                 push: true,
@@ -378,6 +399,9 @@ router.put(
                 profileVisible: true,
                 showEmail: false,
                 showPhone: false,
+                messageWhoCan: "everyone",
+                callWhoCan: "everyone",
+                invisibleMode: false,
               },
             };
           }
@@ -413,13 +437,20 @@ router.put(
 
           // Update privacy preferences
           if (updateData.profile.preferences.privacy) {
-            ["profileVisible", "showEmail", "showPhone"].forEach((field) => {
+            ["profileVisible", "showEmail", "showPhone", "messageWhoCan", "callWhoCan", "invisibleMode"].forEach((field) => {
               if (updateData.profile.preferences.privacy[field] !== undefined) {
                 user.profile.preferences.privacy[field] =
                   updateData.profile.preferences.privacy[field];
                 updatedFields.push(`profile.preferences.privacy.${field}`);
               }
             });
+          }
+
+          // Update currency
+          if (updateData.profile.preferences.currency !== undefined) {
+            user.profile.preferences.currency =
+              updateData.profile.preferences.currency;
+            updatedFields.push("profile.preferences.currency");
           }
         }
       }
@@ -768,6 +799,14 @@ router.post(
         // Follow
         await currentUser.followUser(userId);
         await targetUser.addFollower(currentUser._id);
+        const followerName = currentUser.profile?.username || currentUser.displayName || "Someone";
+        require("../services/notification_service")
+          .notifyNewFollower({
+            followedUserId: userId,
+            followerId: currentUser._id,
+            followerName,
+          })
+          .catch(() => {});
       }
 
       // Log follow action
@@ -889,6 +928,112 @@ router.put(
 );
 
 /**
+ * GET /users/search
+ *
+ * Search users by display name, username, or email
+ * Query params: q (required), limit, page
+ */
+router.get(
+  "/search",
+  authenticateJWT,
+  requireAuth,
+  [
+    query("q")
+      .notEmpty()
+      .withMessage("Search query is required")
+      .isLength({ min: 1, max: 100 })
+      .withMessage("Search query must be between 1 and 100 characters")
+      .trim(),
+    query("limit")
+      .optional()
+      .isInt({ min: 1, max: 50 })
+      .toInt(),
+    query("page")
+      .optional()
+      .isInt({ min: 1 })
+      .toInt(),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          errors: errors.array(),
+        });
+      }
+
+      const { user } = req;
+      const { q, limit = 20, page = 1 } = req.query;
+      const skip = (page - 1) * limit;
+
+      // Escape regex special chars for safety
+      const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(escaped, "i");
+
+      const users = await User.find({
+        _id: { $ne: user._id },
+        isActive: true,
+        deletedAt: null,
+        isBlocked: false,
+        $or: [
+          { displayName: regex },
+          { "profile.username": regex },
+          { email: regex },
+        ],
+      })
+        .select("displayName photoURL profile.username profile.bio")
+        .limit(parseInt(limit))
+        .skip(skip)
+        .lean();
+
+      const total = await User.countDocuments({
+        _id: { $ne: user._id },
+        isActive: true,
+        deletedAt: null,
+        isBlocked: false,
+        $or: [
+          { displayName: regex },
+          { "profile.username": regex },
+          { email: regex },
+        ],
+      });
+
+      res.json({
+        success: true,
+        message: "Users retrieved successfully",
+        data: {
+          users: users.map((u) => ({
+            id: u._id,
+            displayName: u.displayName,
+            photoURL: u.photoURL,
+            username: u.profile?.username,
+            bio: u.profile?.bio,
+          })),
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            hasMore: skip + users.length < total,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("User search error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to search users",
+        error:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Internal server error",
+      });
+    }
+  }
+);
+
+/**
  * GET /users/:userId
  *
  * Get public profile of any user by ID
@@ -903,7 +1048,7 @@ router.get("/:userId", authenticateJWT, async (req, res) => {
       isActive: true,
       deletedAt: null,
     }).select(
-      "-devices -subscription -stats -deletedAt -__v -blockedUsers -hiddenPosts -bookmarkedPosts"
+      "-devices -subscription -stats -deletedAt -__v -hiddenPosts -bookmarkedPosts"
     );
 
     if (!targetUser) {
@@ -925,7 +1070,8 @@ router.get("/:userId", authenticateJWT, async (req, res) => {
     }
 
     // Check if current user is blocked by target user
-    if (targetUser.blockedUsers.includes(currentUser._id)) {
+    const blockedUsers = targetUser.blockedUsers || [];
+    if (blockedUsers.some((id) => id.toString() === currentUser._id.toString())) {
       return res.status(403).json({
         success: false,
         message: "User not found",

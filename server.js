@@ -52,6 +52,9 @@ const rankingsRoutes = require("./routes/rankings");
 const agencyRoutes = require("./routes/agency");
 const fanclubRoutes = require("./routes/fanclub");
 const socialRoutes = require("./routes/social");
+const invitationRoutes = require("./routes/invitation");
+const notificationRoutes = require("./routes/notifications");
+const supportRoutes = require("./routes/support");
 
 // Import cron jobs
 const { startVIPDailyCoinsJob } = require("./cron/vipDailyCoins");
@@ -199,6 +202,9 @@ app.use("/api/rankings", rankingsRoutes);
 app.use("/api/agency", agencyRoutes);
 app.use("/api/fanclub", fanclubRoutes);
 app.use("/api/social", socialRoutes);
+app.use("/api/invitation", invitationRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/support", supportRoutes);
 
 // Serve uploaded files statically
 app.use("/uploads", express.static("uploads"));

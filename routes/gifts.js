@@ -490,6 +490,21 @@ router.post(
         console.error("Error updating rankings:", rankError);
       }
 
+      // Create in-app notification for receiver
+      try {
+        const { notifyGiftReceived } = require("../services/notification_service");
+        const senderName = sender.profile?.username || sender.displayName || "Someone";
+        notifyGiftReceived({
+          receiverId,
+          senderId: user._id,
+          senderName,
+          giftName: gift.name,
+          quantity,
+        }).catch(() => {});
+      } catch (notifyError) {
+        console.error("Error creating gift notification:", notifyError);
+      }
+
       // Notify via Socket.IO
       try {
         const { notifyGiftSent } = require("../services/gift_notifications");

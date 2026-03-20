@@ -28,7 +28,7 @@ router.get("/.well-known/assetlinks.json", (req, res) => {
       relation: ["delegate_permission/common.handle_all_urls"],
       target: {
         namespace: "android_app",
-        package_name: "ancientplustech.ancient.flip",
+        package_name: "com.ancientplus.flip",
         // This SHA256 fingerprint must match the app's signing certificate
         sha256_cert_fingerprints: [
           "60:A4:63:12:61:2E:73:53:C5:D9:84:43:B3:38:12:14:2C:F6:F2:0D:0F:CA:60:D7:46:46:C7:C8:95:18:71:91",
@@ -63,7 +63,7 @@ router.get("/.well-known/apple-app-site-association", (req, res) => {
       details: [
         {
           // Replace TEAM_ID with your actual Apple Team ID from Apple Developer Account
-          appID: "TEAM_ID.ancientplustech.ancient.flip",
+          appID: "TEAM_ID.com.ancientplus.flip",
           // These paths will be handled by the app instead of the browser
           paths: ["/post/*", "/reel/*", "/user/*", "/profile/*"],
         },
@@ -129,7 +129,7 @@ router.get("/post/:postId", async (req, res) => {
         process.env.APP_STORE_URL || "https://apps.apple.com/app/flip",
       playStoreUrl:
         process.env.PLAY_STORE_URL ||
-        "https://play.google.com/store/apps/details?id=ancientplustech.ancient.flip",
+        "https://play.google.com/store/apps/details?id=com.ancientplus.flip",
     });
 
     res.send(html);
@@ -186,7 +186,7 @@ router.get("/reel/:reelId", async (req, res) => {
         process.env.APP_STORE_URL || "https://apps.apple.com/app/flip",
       playStoreUrl:
         process.env.PLAY_STORE_URL ||
-        "https://play.google.com/store/apps/details?id=ancientplustech.ancient.flip",
+        "https://play.google.com/store/apps/details?id=com.ancientplus.flip",
     });
 
     res.send(html);
@@ -229,7 +229,7 @@ router.get("/user/:userId", async (req, res) => {
         process.env.APP_STORE_URL || "https://apps.apple.com/app/flip",
       playStoreUrl:
         process.env.PLAY_STORE_URL ||
-        "https://play.google.com/store/apps/details?id=ancientplustech.ancient.flip",
+        "https://play.google.com/store/apps/details?id=com.ancientplus.flip",
     });
 
     res.send(html);
@@ -295,7 +295,7 @@ function generateOpenGraphHTML(options) {
     <meta property="al:android:url" content="flip://open?url=${encodeURIComponent(
       url
     )}">
-    <meta property="al:android:package" content="ancientplustech.ancient.flip">
+    <meta property="al:android:package" content="com.ancientplus.flip">
     <meta property="al:android:app_name" content="${appName}">
     <meta property="al:web:url" content="${url}">
     

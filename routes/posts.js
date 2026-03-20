@@ -4,6 +4,7 @@ const Post = require("../models/Post");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
+const { notifyPostLiked } = require("../services/notification_service");
 
 const router = express.Router();
 
@@ -1020,6 +1021,13 @@ router.post("/:postId/like", authenticateJWT, requireAuth, async (req, res) => {
       await post.unlike(user._id);
     } else {
       await post.like(user._id);
+      const likerName = user.profile?.username || user.displayName || "Someone";
+      notifyPostLiked({
+        postId,
+        postAuthorId: post.userId,
+        likerId: user._id,
+        likerName,
+      }).catch(() => {});
     }
 
     res.json({

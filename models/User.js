@@ -247,6 +247,24 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
           },
+          messageWhoCan: {
+            type: String,
+            enum: ["everyone", "followers", "friends", "nobody"],
+            default: "everyone",
+          },
+          callWhoCan: {
+            type: String,
+            enum: ["everyone", "followers", "friends", "nobody"],
+            default: "everyone",
+          },
+          invisibleMode: {
+            type: Boolean,
+            default: false,
+          },
+        },
+        currency: {
+          type: String,
+          default: "USD",
         },
       },
     },

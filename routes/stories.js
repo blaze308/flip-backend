@@ -122,16 +122,20 @@ const validateReaction = [
     .withMessage("Invalid reaction type"),
 ];
 
-// Helper function to get user's friends and close friends
+// Helper function to get user's following, close friends, and friends (following used as friends)
 async function getUserRelationships(userId) {
   try {
-    const user = await User.findById(userId).populate("friends closeFriends");
+    const user = await User.findById(userId);
+    if (!user) return { following: [], friends: [], closeFriends: [] };
+    const following = (user.following || []).map((id) => id.toString());
+    const closeFriends = (user.closeFriends || []).map((id) => id.toString());
     return {
-      friends: user.friends?.map((f) => f._id.toString()) || [],
-      closeFriends: user.closeFriends?.map((f) => f._id.toString()) || [],
+      following,
+      friends: following, // Use following as "friends" for story visibility
+      closeFriends,
     };
   } catch (error) {
-    return { friends: [], closeFriends: [] };
+    return { following: [], friends: [], closeFriends: [] };
   }
 }
 
@@ -300,10 +304,9 @@ router.get(
       const { user } = req;
 
       // Get user's relationships
-      const { friends, closeFriends } = await getUserRelationships(
+      const { following, friends, closeFriends } = await getUserRelationships(
         user._id
       );
-      const followingIds = []; // TODO: Get following list from user relationships
 
       // Exclude stories from blocked users
       const blockedUserIds = user.blockedUsers || [];
@@ -502,11 +505,8 @@ router.get("/:storyId", async (req, res) => {
       });
     }
 
-    // Check if user can view this private story
-    // For now, allow if user is the owner or if it's friends/close friends
-    // TODO: Implement proper privacy checks based on relationships
+    // Check if user can view this private story based on relationships
     if (story.userId.toString() === userId.toString()) {
-      // User can view their own story
       return res.json({
         success: true,
         message: "Story retrieved successfully",
@@ -514,8 +514,53 @@ router.get("/:storyId", async (req, res) => {
       });
     }
 
-    // For friends/close friends stories, we'd need to check relationships
-    // For now, deny access to other users' private stories
+    const storyAuthor = await User.findById(story.userId).select(
+      "following closeFriends"
+    );
+    if (!storyAuthor) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to view this story",
+      });
+    }
+
+    const authorFollowing = (storyAuthor.following || []).map((id) =>
+      id.toString()
+    );
+    const authorCloseFriends = (storyAuthor.closeFriends || []).map((id) =>
+      id.toString()
+    );
+
+    if (story.privacy === "friends" && authorFollowing.includes(userId.toString())) {
+      return res.json({
+        success: true,
+        message: "Story retrieved successfully",
+        data: story,
+      });
+    }
+
+    if (
+      story.privacy === "closeFriends" &&
+      authorCloseFriends.includes(userId.toString())
+    ) {
+      return res.json({
+        success: true,
+        message: "Story retrieved successfully",
+        data: story,
+      });
+    }
+
+    if (
+      story.privacy === "custom" &&
+      story.customViewers?.some((id) => id.toString() === userId.toString())
+    ) {
+      return res.json({
+        success: true,
+        message: "Story retrieved successfully",
+        data: story,
+      });
+    }
+
     return res.status(403).json({
       success: false,
       message: "You don't have permission to view this story",

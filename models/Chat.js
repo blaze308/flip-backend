@@ -52,6 +52,14 @@ const chatMemberSchema = new Schema(
         default: true,
       },
     },
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
+    isArchived: {
+      type: Boolean,
+      default: false,
+    },
   },
   { _id: true }
 );
@@ -391,10 +399,16 @@ chatSchema.methods.softDelete = function () {
 // Static Methods
 
 // Find active chats for user
-chatSchema.statics.findActiveChatsForUser = function (userId) {
+chatSchema.statics.findActiveChatsForUser = function (userId, includeArchived = false) {
+  const memberMatch = {
+    userId,
+    isActive: true,
+  };
+  if (!includeArchived) {
+    memberMatch.isArchived = { $ne: true };
+  }
   return this.find({
-    "members.userId": userId,
-    "members.isActive": true,
+    members: { $elemMatch: memberMatch },
     status: "active",
     deletedAt: null,
   }).sort({ "lastMessage.timestamp": -1 });
@@ -435,16 +449,22 @@ chatSchema.statics.createDirectChat = function (
 };
 
 // Search chats by name
-chatSchema.statics.searchChats = function (userId, query) {
+chatSchema.statics.searchChats = function (userId, searchQuery, includeArchived = false) {
+  const memberMatch = {
+    userId,
+    isActive: true,
+  };
+  if (!includeArchived) {
+    memberMatch.isArchived = { $ne: true };
+  }
   return this.find({
-    "members.userId": userId,
-    "members.isActive": true,
+    members: { $elemMatch: memberMatch },
     status: "active",
     deletedAt: null,
     $or: [
-      { name: { $regex: query, $options: "i" } },
-      { "members.displayName": { $regex: query, $options: "i" } },
-      { "members.username": { $regex: query, $options: "i" } },
+      { name: { $regex: searchQuery, $options: "i" } },
+      { "members.displayName": { $regex: searchQuery, $options: "i" } },
+      { "members.username": { $regex: searchQuery, $options: "i" } },
     ],
   }).sort({ "lastMessage.timestamp": -1 });
 };

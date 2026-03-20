@@ -5,6 +5,7 @@ const Post = require("../models/Post");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const { authenticateJWT, requireAuth } = require("../middleware/jwtAuth");
+const { notifyPostCommented } = require("../services/notification_service");
 
 const router = express.Router();
 
@@ -270,6 +271,15 @@ router.post(
         ipAddress: req.ip,
         userAgent: req.get("User-Agent"),
       }).catch(console.error);
+
+      const commenterName = commentObj.author || "Someone";
+      notifyPostCommented({
+        postId,
+        postAuthorId: post.userId._id,
+        commenterId: user._id,
+        commenterName,
+        commentPreview: content,
+      }).catch(() => {});
 
       res.status(201).json({
         success: true,
